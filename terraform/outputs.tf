@@ -13,3 +13,7 @@ output "s3_bucket" {
 output "lambda_artifacts_bucket" {
   value = aws_s3_bucket.lambda_artifacts.bucket
 }
+
+output "cf_logs_bucket" {
+  value = aws_s3_bucket.cf_logs.bucket
+}

@@ -39,7 +39,7 @@ from services.rag.chains import (
     CHAT_MODEL,
 )
 from services.rag.prompts import PLAIN_ENGLISH_SYSTEM
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, trim_messages
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +282,8 @@ async def chat(
     ]
 
     context = format_docs(all_docs)
+    if len(context) > 24_000:  # ~6k tokens @ 4 chars/token
+        context = context[:24_000] + "\n\n[Context truncated to fit token budget]"
 
     # Hard gate: if a case_id was provided but no documents scored above the
     # threshold, inject an explicit warning so the model does not hallucinate
@@ -296,14 +298,23 @@ async def chat(
     else:
         no_doc_warning = ""
 
-    lc_messages = [
-        SystemMessage(content=PLAIN_ENGLISH_SYSTEM + no_doc_warning + "\n\nRelevant legal context:\n" + context)
+    _history_msgs = [
+        HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
+        for m in req.messages[-20:]  # 10 turns max before token trim
     ]
-    for m in req.messages[-8:]:
-        lc_messages.append(
-            HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
-        )
-    lc_messages.append(HumanMessage(content=req.question))
+    history = trim_messages(
+        _history_msgs,
+        max_tokens=4000,
+        token_counter=lambda msgs: sum(len(m.content) for m in msgs) // 4,
+        strategy="last",
+        start_on="human",
+        include_system=False,
+    )
+    lc_messages = [
+        SystemMessage(content=PLAIN_ENGLISH_SYSTEM + no_doc_warning + "\n\nRelevant legal context:\n" + context),
+        *history,
+        HumanMessage(content=req.question),
+    ]
 
     messages_raw = [{"role": m.role, "content": m.content} for m in req.messages]
 

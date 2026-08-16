@@ -117,6 +117,46 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
+# ── S3 — CloudFront access logs ──────────────────────────────────────────────
+# CloudFront log delivery uses legacy ACL grants (awslogsdelivery account), so
+# the bucket needs BucketOwnerPreferred ownership and the log-delivery-write
+# canned ACL. BlockPublicAcls must be false to allow that ACL to land.
+
+resource "aws_s3_bucket" "cf_logs" {
+  bucket        = "${var.project}-cf-logs-${random_id.suffix.hex}"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "cf_logs" {
+  bucket = aws_s3_bucket.cf_logs.id
+  rule { object_ownership = "BucketOwnerPreferred" }
+}
+
+resource "aws_s3_bucket_acl" "cf_logs" {
+  depends_on = [aws_s3_bucket_ownership_controls.cf_logs]
+  bucket     = aws_s3_bucket.cf_logs.id
+  acl        = "log-delivery-write"
+}
+
+resource "aws_s3_bucket_public_access_block" "cf_logs" {
+  depends_on              = [aws_s3_bucket_acl.cf_logs]
+  bucket                  = aws_s3_bucket.cf_logs.id
+  block_public_acls       = false  # log-delivery-write ACL requires this
+  block_public_policy     = true
+  ignore_public_acls      = false  # allow the delivery ACL to be honoured
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "cf_logs" {
+  bucket = aws_s3_bucket.cf_logs.id
+  rule {
+    id     = "expire-logs"
+    status = "Enabled"
+    filter {}
+    expiration { days = 90 }
+  }
+}
+
 # ── CloudFront ────────────────────────────────────────────────────────────────
 
 # Rewrite directory-style paths to their index.html before S3 lookup.
@@ -196,6 +236,12 @@ resource "aws_cloudfront_distribution" "frontend" {
     error_code            = 404
     response_code         = 200
     response_page_path    = "/index.html"
+  }
+
+  logging_config {
+    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
+    prefix          = "cf/"
+    include_cookies = false
   }
 
   restrictions {
