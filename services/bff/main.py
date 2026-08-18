@@ -127,6 +127,7 @@ class ChatRequest(BaseModel):
 class UploadUrlRequest(BaseModel):
     filename: str
     content_type: str = "application/octet-stream"
+    case_id: str | None = None
 
 
 class IntakeRequest(BaseModel):
@@ -305,11 +306,12 @@ async def intake_upload_url(req: UploadUrlRequest, authorization: str = Header(d
     user_id = _get_user_from_header(authorization)
     safe_name = os.path.basename(req.filename)
     key = f"intakes/{user_id}/{uuid4()}/{safe_name}"
-    url = _s3.generate_presigned_url(
-        "put_object",
-        Params={"Bucket": UPLOADS_BUCKET, "Key": key, "ContentType": req.content_type},
-        ExpiresIn=300,
-    )
+    params = {"Bucket": UPLOADS_BUCKET, "Key": key, "ContentType": req.content_type}
+    if req.case_id:
+        # case-id in S3 metadata lets the ingestion Lambda skip the DB lookup,
+        # avoiding a race condition if the intake was just created.
+        params["Metadata"] = {"case-id": req.case_id}
+    url = _s3.generate_presigned_url("put_object", Params=params, ExpiresIn=300)
     return {"upload_url": url, "key": key}
 
 

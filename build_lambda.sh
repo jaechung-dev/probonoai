@@ -18,9 +18,13 @@ PY_FLAGS="--platform manylinux2014_x86_64 --python-version 3.12 --only-binary=:a
 # by using plain `uvicorn` in requirements).
 slim() {
   local d="$1"
+  # boto3/botocore are provided by the Lambda Python runtime
   rm -rf "$d"/boto3 "$d"/botocore
   find "$d" -depth -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-  find "$d" -maxdepth 1 -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true
+  # NOTE: .dist-info dirs are intentionally kept — openai/httpx/mcp read their own
+  # metadata via importlib.metadata at import time and crash with ImportModuleError
+  # if dist-info is missing. S3-deployed Lambdas have a 250MB unzipped limit so
+  # the extra few MB is not a concern.
 }
 
 # Remove any stale nested build artifacts before packaging

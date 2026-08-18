@@ -31,8 +31,9 @@ from psycopg2.extras import execute_values
 # services.core.settings._load_secrets() populates os.environ at import time.
 from services.core.settings import settings as _settings  # noqa: F401
 
+logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 DATABASE_URL   = os.environ.get("DATABASE_URL", "")

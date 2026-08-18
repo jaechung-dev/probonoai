@@ -256,7 +256,7 @@ async def chat(
 ) -> StreamingResponse:
     user = _get_user_from_header(authorization)
 
-    MIN_CASE_SCORE = 0.35
+    MIN_CASE_SCORE = 0.20
     leg = LegislationRetriever(k=req.k, jurisdiction="NSW")
     cas = CaselawRetriever(k=req.k)
     all_docs = leg.invoke(req.question) + cas.invoke(req.question)
