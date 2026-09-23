@@ -49,7 +49,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "eslint": "^9",
     "husky": "^9.1.7",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "react-snap": "^1.23.0",
     "tailwindcss": "^4",
     "typescript": "^5",
