@@ -61,7 +61,7 @@ export default function LoginPage() {
   return (
     <>
       <Helmet>
-        <title>Sign in — {APP_NAME}</title>
+        <title>{`Sign in — ${APP_NAME}`}</title>
         <meta name="robots" content="noindex" />
       </Helmet>
     <div className="min-h-screen flex bg-white">

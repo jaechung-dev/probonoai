@@ -7,7 +7,7 @@ export default function TermsPage() {
   return (
     <>
       <Helmet>
-        <title>Terms of Service — {APP_NAME}</title>
+        <title>{`Terms of Service — ${APP_NAME}`}</title>
         <meta name="description" content={`Terms and conditions governing use of ${APP_NAME}.`} />
         <meta name="robots" content="noindex" />
       </Helmet>

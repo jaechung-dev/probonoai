@@ -7,7 +7,7 @@ export default function PrivacyPage() {
   return (
     <>
       <Helmet>
-        <title>Privacy Policy — {APP_NAME}</title>
+        <title>{`Privacy Policy — ${APP_NAME}`}</title>
         <meta name="description" content={`How ${APP_NAME} collects, uses, and protects your information.`} />
         <meta name="robots" content="noindex" />
       </Helmet>

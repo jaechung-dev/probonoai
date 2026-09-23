@@ -159,7 +159,7 @@ export default function RegisterPage() {
   return (
     <>
       <Helmet>
-        <title>Create account — {APP_NAME}</title>
+        <title>{`Create account — ${APP_NAME}`}</title>
         <meta name="robots" content="noindex" />
       </Helmet>
     <div className="min-h-screen flex bg-white">
