@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 
 import httpx
 import psycopg2
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from jose import jwt
 from pydantic import BaseModel
@@ -62,10 +62,6 @@ class RegisterRequest(BaseModel):
     name: str
     email: str
     password: str
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
 
 
 class EmailRequest(BaseModel):
@@ -211,6 +207,28 @@ def _issue(
     }
 
 
+# ── Refresh-token cookie helpers ──────────────────────────────────────────────
+
+_SECURE_COOKIE = "localhost" not in settings.BACKEND_URL
+_REFRESH_MAX_AGE = 30 * 24 * 3600  # 30 days, matches _issue()
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key="iai_refresh",
+        value=token,
+        max_age=_REFRESH_MAX_AGE,
+        httponly=True,
+        secure=_SECURE_COOKIE,
+        samesite="strict",
+        path="/auth",  # only sent to /auth/* endpoints
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key="iai_refresh", path="/auth", samesite="strict")
+
+
 # ── Auth guard (shared with BFF) ───────────────────────────────────────────────
 
 
@@ -309,7 +327,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register")
-def auth_register(req: RegisterRequest):
+def auth_register(req: RegisterRequest, response: Response):
     email = req.email.lower().strip()
     if not req.name.strip():
         raise HTTPException(422, "Name is required")
@@ -341,27 +359,37 @@ def auth_register(req: RegisterRequest):
     _email_otp(email, req.name.strip(), code)
 
     tokens = _issue(user_id, email, req.name.strip(), "user", email_verified=False)
-    tokens["user"] = {
-        "username": email, "name": req.name.strip(),
-        "role": "user", "email_verified": False,
+    _set_refresh_cookie(response, tokens["refresh_token"])
+    return {
+        "access_token": tokens["access_token"],
+        "token_type":   tokens["token_type"],
+        "expires_in":   tokens["expires_in"],
+        "user": {
+            "username": email, "name": req.name.strip(),
+            "role": "user", "email_verified": False,
+        },
     }
-    return tokens
 
 
 @router.post("/login")
-async def auth_login(req: LoginRequest, request: Request):
+async def auth_login(req: LoginRequest, request: Request, response: Response):
     await _rate_limit(f"rate:login:{req.username.lower().strip()}")
     seed = SEED_USERS.get(req.username)
     if seed and seed["password"] == req.password:
         tokens = _issue(
             SEED_IDS[req.username], req.username, seed["name"], seed["role"], email_verified=True
         )
-        tokens["user"] = {
-            "username": req.username, "name": seed["name"],
-            "role": seed["role"], "email_verified": True,
-        }
+        _set_refresh_cookie(response, tokens["refresh_token"])
         _log_access(SEED_IDS[req.username], req.username, "demo", request)
-        return tokens
+        return {
+            "access_token": tokens["access_token"],
+            "token_type":   tokens["token_type"],
+            "expires_in":   tokens["expires_in"],
+            "user": {
+                "username": req.username, "name": seed["name"],
+                "role": seed["role"], "email_verified": True,
+            },
+        }
 
     email = req.username.lower().strip()
     user  = _db_user(email)
@@ -374,41 +402,58 @@ async def auth_login(req: LoginRequest, request: Request):
 
     tokens = _issue(user["id"], email, user["name"], user["role"],
                     email_verified=user["email_verified"])
-    tokens["user"] = {
-        "username": email, "name": user["name"],
-        "role": user["role"], "email_verified": user["email_verified"],
-    }
+    _set_refresh_cookie(response, tokens["refresh_token"])
     _log_access(user["id"], email, "password", request)
-    return tokens
+    return {
+        "access_token": tokens["access_token"],
+        "token_type":   tokens["token_type"],
+        "expires_in":   tokens["expires_in"],
+        "user": {
+            "username": email, "name": user["name"],
+            "role": user["role"], "email_verified": user["email_verified"],
+        },
+    }
 
 
 @router.post("/refresh")
-def auth_refresh(req: RefreshRequest):
+def auth_refresh(request: Request, response: Response):
+    raw = request.cookies.get("iai_refresh")
+    if not raw:
+        raise HTTPException(401, "Refresh token required")
     with _db() as conn:
         cur = conn.cursor()
         cur.execute(
             "SELECT rt.user_id,u.email,u.name,u.role,u.email_verified "
             "FROM refresh_tokens rt JOIN users u ON u.id=rt.user_id "
             "WHERE rt.token_hash=%s AND rt.expires_at>NOW()",
-            (_h(req.refresh_token),),
+            (_h(raw),),
         )
         row = cur.fetchone()
         if not row:
+            _clear_refresh_cookie(response)
             raise HTTPException(401, "Invalid or expired refresh token")
         user_id, email, name, role, ev = row
-        cur.execute("DELETE FROM refresh_tokens WHERE token_hash=%s", (_h(req.refresh_token),))
+        cur.execute("DELETE FROM refresh_tokens WHERE token_hash=%s", (_h(raw),))
 
     tokens = _issue(user_id, email, name, role, email_verified=ev)
-    tokens["user"] = {"username": email, "name": name, "role": role, "email_verified": ev}
-    return tokens
+    _set_refresh_cookie(response, tokens["refresh_token"])
+    return {
+        "access_token": tokens["access_token"],
+        "token_type":   tokens["token_type"],
+        "expires_in":   tokens["expires_in"],
+        "user": {"username": email, "name": name, "role": role, "email_verified": ev},
+    }
 
 
 @router.post("/logout")
-def auth_logout(req: RefreshRequest):
-    with _db() as conn:
-        conn.cursor().execute(
-            "DELETE FROM refresh_tokens WHERE token_hash=%s", (_h(req.refresh_token),)
-        )
+def auth_logout(request: Request, response: Response):
+    raw = request.cookies.get("iai_refresh")
+    if raw:
+        with _db() as conn:
+            conn.cursor().execute(
+                "DELETE FROM refresh_tokens WHERE token_hash=%s", (_h(raw),)
+            )
+    _clear_refresh_cookie(response)
     return {"ok": True}
 
 
@@ -669,7 +714,9 @@ async def google_callback(request: Request, code: str = Query(...), state: str =
 
     tokens = _issue(user_id, email, name, user["role"] if user else "user", email_verified=True)
     _log_access(user_id, email, "google", request)
-    return RedirectResponse(
-        f"{FRONTEND_URL}/auth/callback"
-        f"?token={tokens['access_token']}&refresh={tokens['refresh_token']}"
+    resp = RedirectResponse(
+        f"{FRONTEND_URL}/auth/callback?token={tokens['access_token']}",
+        status_code=302,
     )
+    _set_refresh_cookie(resp, tokens["refresh_token"])
+    return resp

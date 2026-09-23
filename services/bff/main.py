@@ -12,6 +12,7 @@ Auth routes are handled by services/auth/service.py via APIRouter.
 """
 import os
 import json
+import re
 import time
 import asyncio
 import logging
@@ -21,9 +22,10 @@ from uuid import uuid4
 
 import psycopg2
 from psycopg2.extras import Json
+from openai import OpenAI as _OpenAI
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from jose import jwt
 from mangum import Mangum
 from pydantic import BaseModel
@@ -37,6 +39,7 @@ from services.auth.service import (
     JWT_ALG,
 )
 from services.core.cache import get_redis
+from services.core.settings import settings
 from services.rag.retrievers import (
     LegislationRetriever,
     CaselawRetriever,
@@ -260,9 +263,17 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(AccessLogMiddleware)
+_ALLOWED_ORIGINS = list({
+    settings.FRONTEND_URL.rstrip("/"),
+    "https://www.probonoai.com.au",
+    "https://probonoai.com.au",
+    "http://localhost:5173",
+    "http://localhost:4173",
+})
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -452,12 +463,87 @@ async def ask(req: AskRequest, authorization: str = Header(default=None)):
     )
 
 
+# ── Guardrails ────────────────────────────────────────────────────────────────
+
+_moderation_client = _OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+
+_CRISIS_PATTERNS = re.compile(
+    r"\b(suicide|suicidal|kill (my)?self|end my life|take my (own )?life|"
+    r"self.harm|self.hurt|cut (my)?self|overdose|don'?t want to (live|be alive)|"
+    r"no reason to live|want to die|better off dead|can'?t go on)\b",
+    re.I,
+)
+
+_CRISIS_REPLY = (
+    "I can see you may be going through an incredibly difficult time. "
+    "Please reach out to someone who can help right now:\n\n"
+    "🆘 **Lifeline** — 13 11 14 (24/7)\n"
+    "💙 **Beyond Blue** — 1300 22 4636\n"
+    "📱 **Crisis Text** — text 0477 13 11 14\n\n"
+    "You are not alone. These services are free and confidential."
+)
+
+async def _check_guardrails(question: str) -> StreamingResponse | None:
+    """Return a guardrail response if the message should not reach the LLM, else None."""
+    # 1. Crisis / self-harm — instant, no API call
+    if _CRISIS_PATTERNS.search(question):
+        logger.warning("guardrail:crisis question=%r", question[:120])
+        return _canned_stream(_CRISIS_REPLY, sources=[])
+
+    # 2. OpenAI Moderation API — free, catches hate/violence/self-harm the regex missed
+    try:
+        result = await asyncio.to_thread(
+            _moderation_client.moderations.create, input=question
+        )
+        cats = result.results[0].categories
+        if any([cats.self_harm, cats.self_harm_intent, cats.self_harm_instructions,
+                cats.harassment_threatening, cats.violence]):
+            logger.warning("guardrail:moderation flagged question=%r", question[:120])
+            return _canned_stream(_CRISIS_REPLY, sources=[])
+    except Exception as _e:
+        logger.warning("guardrail:moderation error %r", _e)
+
+    return None
+
+
+def _canned_stream(message: str, sources: list) -> StreamingResponse:
+    async def _gen():
+        yield f"data: {json.dumps({'type': 'token', 'content': message})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'sources': sources})}\n\n"
+    return StreamingResponse(_gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+_OFFTOPIC_PATTERNS = re.compile(
+    r"^\s*(hi+|hey+|hello+|howdy|g'?day|good\s+(morning|afternoon|evening|day)|"
+    r"how are (you|u)|how('?s| is) it going|what('?s| is) up|sup|"
+    r"thank(s| you)|cheers|ok|okay|cool|great|nice|"
+    r"who are you|what are you|are you (a )?bot|are you (an )?ai|"
+    r"what can you do|what do you do|tell me about yourself)\W*$",
+    re.I,
+)
+
+def _offtopic_reply() -> StreamingResponse:
+    return _canned_stream(
+        "I'm a legal assistant focused on Australian law. "
+        "Please ask me a legal question — for example about your rights, "
+        "a case, legislation, or a legal document.",
+        sources=[],
+    )
+
+
 @app.post("/chat")
 async def chat(req: ChatRequest, request: Request, authorization: str = Header(default=None)):
     user = _get_user_from_header(authorization)
     # Gate anonymous users to the free-message quota (logged-in users unlimited).
     if user == "anon":
         await _enforce_anon_chat_limit(request)
+    guardrail = await _check_guardrails(req.question)
+    if guardrail:
+        return guardrail
+    if _OFFTOPIC_PATTERNS.match(req.question):
+        logger.info("chat offtopic deflected question=%r user=%s", req.question[:80], user)
+        return _offtopic_reply()
     logger.info(
         "chat question=%r messages=%d case_id=%s user=%s",
         req.question[:120], len(req.messages), req.case_id, user,
