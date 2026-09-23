@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { Scale, ArrowRight, Check, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/context/auth'
 import { API_URL as API, APP_DOMAIN, APP_NAME } from '@/lib/config'
@@ -156,6 +157,11 @@ export default function RegisterPage() {
   )
 
   return (
+    <>
+      <Helmet>
+        <title>Create account — {APP_NAME}</title>
+        <meta name="robots" content="noindex" />
+      </Helmet>
     <div className="min-h-screen flex bg-white">
       <div className="hidden lg:flex lg:w-[45%] bg-zinc-950 flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(52,211,153,0.08)_0%,_transparent_60%)]" />
@@ -269,6 +275,7 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 

@@ -1,9 +1,16 @@
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { Scale } from 'lucide-react'
 import { APP_NAME, APP_DOMAIN } from '@/lib/config'
 
 export default function TermsPage() {
   return (
+    <>
+      <Helmet>
+        <title>Terms of Service — {APP_NAME}</title>
+        <meta name="description" content={`Terms and conditions governing use of ${APP_NAME}.`} />
+        <meta name="robots" content="noindex" />
+      </Helmet>
     <div className="min-h-screen bg-zinc-950 text-white">
       <header className="border-b border-zinc-800/60">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
@@ -109,6 +116,7 @@ export default function TermsPage() {
         </div>
       </footer>
     </div>
+    </>
   )
 }
 

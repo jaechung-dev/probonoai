@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { ArrowRight, Search, MessageSquare, Clock, Plug, LogIn, Scale } from 'lucide-react'
+import { ArrowRight, Search, MessageSquare, Clock, Plug, Scale } from 'lucide-react'
 import { useAuth } from '@/context/auth'
 import LoginModal from '../components/LoginModal'
 import { APP_DOMAIN, APP_NAME, APP_URL } from '@/lib/config'
@@ -91,7 +91,7 @@ export default function HomePage() {
           </div>
           <button
             onClick={cta}
-            className="flex items-center gap-1.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-sm font-medium text-zinc-200 hover:text-white transition-colors"
           >
             {user ? 'Open app' : 'Sign in'} <ArrowRight className="w-3.5 h-3.5" />
           </button>
@@ -141,7 +141,7 @@ export default function HomePage() {
               <div className="h-px flex-1 bg-amber-700/35" />
             </div>
 
-            <p className="text-sm text-zinc-400 max-w-md mb-7 leading-relaxed">
+            <p className="text-sm text-zinc-300 max-w-md mb-7 leading-relaxed">
               Search NSW legislation, ask questions, and get AI-powered analysis grounded in real court decisions — at no cost.
             </p>
 
@@ -152,41 +152,27 @@ export default function HomePage() {
                 <div className="w-px flex-1 bg-amber-500/25 mt-1 mb-1" />
                 <div className="w-1.5 h-1.5 rotate-45 bg-amber-500/70 shrink-0" />
               </div>
-              <p className="text-sm text-zinc-400 leading-relaxed italic">
+              <p className="text-sm text-zinc-300 leading-relaxed italic">
                 "Everyone deserves to understand their legal situation, not just those who can afford a lawyer."
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row gap-3 mb-10">
               <button
                 onClick={cta}
                 className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 rounded-xl px-8 py-3.5 text-sm font-bold transition-all shadow-lg shadow-amber-900/40"
               >
-                {user ? 'Open app' : 'Sign in'} <ArrowRight className="w-4 h-4" />
+                {user ? 'Open app' : 'Create free account'} <ArrowRight className="w-4 h-4" />
               </button>
               {!user && (
                 <button
                   onClick={cta}
-                  className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-amber-600/50 text-zinc-400 hover:text-white rounded-xl px-8 py-3.5 text-sm font-semibold transition-all"
+                  className="flex items-center justify-center gap-2 border border-zinc-700 hover:border-amber-600/50 text-zinc-300 hover:text-white rounded-xl px-8 py-3.5 text-sm font-semibold transition-all"
                 >
-                  Create account
+                  Sign in
                 </button>
               )}
             </div>
-
-            {/* Demo login */}
-            {!user && (
-              <div className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 mb-10 max-w-sm">
-                <LogIn className="w-4 h-4 text-rose-400 shrink-0" />
-                <p className="text-xs text-zinc-400">
-                  Try instantly —{' '}
-                  <button onClick={cta} className="text-rose-400 hover:text-rose-300 font-semibold transition-colors">
-                    sign in
-                  </button>
-                  {' '}with <span className="font-mono text-zinc-300">demo</span> / <span className="font-mono text-zinc-300">demo1234</span>
-                </p>
-              </div>
-            )}
 
             {/* Sample questions */}
             <div className="max-w-lg">

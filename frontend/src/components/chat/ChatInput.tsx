@@ -28,6 +28,9 @@ export default function ChatInput({ value, onChange, onSend, disabled }: Props) 
           <Send className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
+      <p className="max-w-2xl mx-auto mt-2 text-[11px] text-gray-400 text-center leading-snug">
+        Not legal advice · For informational purposes only · Questions processed by OpenAI
+      </p>
     </div>
   )
 }
