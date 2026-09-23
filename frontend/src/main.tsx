@@ -1,6 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot, hydrateRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import { HelmetProvider } from 'react-helmet-async'
+import '@fontsource/playfair-display/400.css'
+import '@fontsource/playfair-display/600.css'
+import '@fontsource/playfair-display/700.css'
+import '@fontsource/playfair-display/900.css'
+import '@fontsource-variable/inter'
 import './index.css'
 import App from './App'
 
@@ -18,9 +24,11 @@ const app = (
 // client-render cleanly to avoid hydration mismatches.
 if (rootEl.hasChildNodes() && window.location.pathname === '/') {
   hydrateRoot(rootEl, app)
+  document.documentElement.classList.remove('booting')
 } else {
   rootEl.innerHTML = ''
-  createRoot(rootEl).render(app)
+  // flushSync ensures React commits before we reveal #root, preventing a
+  // brief blank-screen flash between unbooting and React's first paint.
+  flushSync(() => createRoot(rootEl).render(app))
+  document.documentElement.classList.remove('booting')
 }
-// Reveal once React has taken over (see the boot gate in index.html).
-document.documentElement.classList.remove('booting')
