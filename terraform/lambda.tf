@@ -83,10 +83,11 @@ resource "aws_apigatewayv2_api" "api" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["*"]
-    allow_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
-    allow_headers = ["Content-Type", "Authorization"]
-    max_age       = 86400
+    allow_origins     = ["https://www.probonoai.com.au", "https://probonoai.com.au", "http://localhost:5173", "http://localhost:4173", "http://localhost:20001"]
+    allow_methods     = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    allow_headers     = ["Content-Type", "Authorization"]
+    allow_credentials = true
+    max_age           = 86400
   }
 }
 
