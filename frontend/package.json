@@ -52,7 +52,7 @@
     "jsdom": "^29.1.1",
     "react-snap": "^1.23.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "^7",
     "vitest": "^4.1.10"
   }
 }
