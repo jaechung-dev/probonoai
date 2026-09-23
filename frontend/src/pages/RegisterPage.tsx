@@ -22,6 +22,7 @@ export default function RegisterPage() {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [verifyEmail, setVerifyEmail] = useState('')
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const [otp, setOtp]             = useState<string[]>(Array(6).fill(''))
   const [otpError, setOtpError]   = useState('')
@@ -40,6 +41,7 @@ export default function RegisterPage() {
     setError('')
     if (password !== confirm) { setError('Passwords do not match'); return }
     if (password.length < 8)  { setError('Password must be at least 8 characters'); return }
+    if (!agreedToTerms)       { setError('Please agree to the Terms of Service and Privacy Policy'); return }
     setLoading(true)
     try {
       await register(name, email, password)
@@ -110,7 +112,7 @@ export default function RegisterPage() {
     : password.length < 12 ? 'fair'
     : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 'strong' : 'good'
 
-  const strengthColor = { weak: 'bg-rose-400', fair: 'bg-amber-400', good: 'bg-rose-400', strong: 'bg-rose-500' }
+  const strengthColor = { weak: 'bg-rose-400', fair: 'bg-amber-400', good: 'bg-emerald-400', strong: 'bg-emerald-500' }
   const strengthWidth = { weak: 'w-1/4', fair: 'w-2/4', good: 'w-3/4', strong: 'w-full' }
 
   if (verifyEmail) return (
@@ -230,7 +232,7 @@ export default function RegisterPage() {
                   <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                     <div className={`h-1 rounded-full transition-all ${strengthColor[passwordStrength]} ${strengthWidth[passwordStrength]}`} />
                   </div>
-                  <p className={`text-xs capitalize ${passwordStrength === 'weak' ? 'text-rose-500' : passwordStrength === 'fair' ? 'text-amber-500' : 'text-rose-600'}`}>{passwordStrength} password</p>
+                  <p className={`text-xs capitalize ${passwordStrength === 'weak' ? 'text-rose-500' : passwordStrength === 'fair' ? 'text-amber-500' : 'text-emerald-500'}`}>{passwordStrength} password</p>
                 </div>
               )}
             </div>
@@ -240,8 +242,22 @@ export default function RegisterPage() {
                 className={`w-full border bg-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all placeholder:text-gray-400 shadow-sm ${confirm && confirm !== password ? 'border-rose-300' : 'border-gray-200'}`}
                 placeholder="Repeat your password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" required />
             </div>
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={e => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500 shrink-0 cursor-pointer"
+              />
+              <span className="text-xs text-gray-500 leading-relaxed">
+                I agree to the{' '}
+                <Link to="/terms" target="_blank" className="text-rose-600 hover:text-rose-700 hover:underline font-medium">Terms of Service</Link>
+                {' '}and{' '}
+                <Link to="/privacy" target="_blank" className="text-rose-600 hover:text-rose-700 hover:underline font-medium">Privacy Policy</Link>
+              </span>
+            </label>
             {error && <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">{error}</div>}
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={loading || !agreedToTerms}
               className="w-full bg-zinc-950 hover:bg-zinc-800 text-white rounded-xl h-11 text-sm font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg">
               {loading ? 'Creating account…' : <>Create account <ArrowRight className="w-4 h-4" /></>}
             </button>

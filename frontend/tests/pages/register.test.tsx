@@ -49,6 +49,7 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/you@example.com/i), { target: { value: 'test@example.com' } })
     fireEvent.change(screen.getByPlaceholderText(/min. 8 characters/i), { target: { value: 'password123' } })
     fireEvent.change(screen.getByPlaceholderText(/repeat your password/i), { target: { value: 'different123' } })
+    fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
     await waitFor(() =>
       expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument()
@@ -61,6 +62,7 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/you@example.com/i), { target: { value: 'test@example.com' } })
     fireEvent.change(screen.getByPlaceholderText(/min. 8 characters/i), { target: { value: 'short' } })
     fireEvent.change(screen.getByPlaceholderText(/repeat your password/i), { target: { value: 'short' } })
+    fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
     await waitFor(() =>
       expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
@@ -91,6 +93,7 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/you@example.com/i), { target: { value: 'jane@example.com' } })
     fireEvent.change(screen.getByPlaceholderText(/min. 8 characters/i), { target: { value: 'SecurePass99!' } })
     fireEvent.change(screen.getByPlaceholderText(/repeat your password/i), { target: { value: 'SecurePass99!' } })
+    fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
     await waitFor(() =>
       expect(screen.getByText(/enter verification code/i)).toBeInTheDocument()
@@ -106,6 +109,7 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/you@example.com/i), { target: { value: 'jane@example.com' } })
     fireEvent.change(screen.getByPlaceholderText(/min. 8 characters/i), { target: { value: 'SecurePass99!' } })
     fireEvent.change(screen.getByPlaceholderText(/repeat your password/i), { target: { value: 'SecurePass99!' } })
+    fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
     await waitFor(() =>
       expect(screen.getByText('jane@example.com')).toBeInTheDocument()

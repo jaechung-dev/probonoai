@@ -14,6 +14,8 @@ const SearchPage        = lazy(() => import('./pages/SearchPage'))
 const MyCasePage        = lazy(() => import('./pages/MyCasePage'))
 const ConnectPage       = lazy(() => import('./pages/ConnectPage'))
 const IntakePage        = lazy(() => import('./pages/IntakePage'))
+const PrivacyPage       = lazy(() => import('./pages/PrivacyPage'))
+const TermsPage         = lazy(() => import('./pages/TermsPage'))
 
 export default function App() {
   const [client] = useState(() => new QueryClient({
@@ -37,6 +39,8 @@ export default function App() {
               <Route path="/my-case"           element={<MyCasePage />} />
               <Route path="/connect"           element={<ConnectPage />} />
               <Route path="/intake"            element={<IntakePage />} />
+              <Route path="/privacy"            element={<PrivacyPage />} />
+              <Route path="/terms"              element={<TermsPage />} />
               <Route path="*"                  element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

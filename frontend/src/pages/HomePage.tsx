@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { ArrowRight, Search, MessageSquare, Clock, Plug, LogIn, Scale } from 'lucide-react'
 import { useAuth } from '@/context/auth'
@@ -253,14 +253,15 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="font-serif font-semibold text-white text-sm">{APP_NAME}</p>
-                <p className="text-xs text-zinc-400 mt-0.5">Not legal advice · For informational purposes only</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Not legal advice · For informational purposes only · © 2026</p>
               </div>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 flex-wrap">
               <button onClick={cta} className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors">Search</button>
               <button onClick={cta} className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors">Ask a question</button>
               <button onClick={cta} className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors">Connect AI</button>
-              <span className="text-xs text-zinc-400">{APP_DOMAIN}</span>
+              <Link to="/privacy" className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors">Privacy</Link>
+              <Link to="/terms" className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors">Terms</Link>
             </div>
           </div>
         </footer>
