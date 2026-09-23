@@ -465,7 +465,16 @@ async def ask(req: AskRequest, authorization: str = Header(default=None)):
 
 # ── Guardrails ────────────────────────────────────────────────────────────────
 
-_moderation_client = _OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+_moderation_client: _OpenAI | None = None
+
+def _get_moderation_client() -> _OpenAI | None:
+    global _moderation_client
+    if _moderation_client is None:
+        key = os.getenv("OPENAI_API_KEY", "")
+        if not key:
+            return None
+        _moderation_client = _OpenAI(api_key=key)
+    return _moderation_client
 
 _CRISIS_PATTERNS = re.compile(
     r"\b(suicide|suicidal|kill (my)?self|end my life|take my (own )?life|"
@@ -492,8 +501,11 @@ async def _check_guardrails(question: str) -> StreamingResponse | None:
 
     # 2. OpenAI Moderation API — free, catches hate/violence/self-harm the regex missed
     try:
+        client = _get_moderation_client()
+        if client is None:
+            return None
         result = await asyncio.to_thread(
-            _moderation_client.moderations.create, input=question
+            client.moderations.create, input=question
         )
         cats = result.results[0].categories
         if any([cats.self_harm, cats.self_harm_intent, cats.self_harm_instructions,
