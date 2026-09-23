@@ -2,8 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, lazy, Suspense } from 'react'
 import { AuthProvider } from '@/context/auth'
-
-const HomePage          = lazy(() => import('./pages/HomePage'))
+// Eager: pre-rendered route must be synchronously available during hydrateRoot —
+// lazy + Suspense here triggers #418 because Playwright HTML has no <!--$--> markers.
+import HomePage from './pages/HomePage'
 const LoginPage         = lazy(() => import('./pages/LoginPage'))
 const RegisterPage      = lazy(() => import('./pages/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
