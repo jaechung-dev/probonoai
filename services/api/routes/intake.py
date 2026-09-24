@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from services.core.db import get_db
+from services.core.settings import settings
 from services.api.deps import get_user_from_header
 
 router = APIRouter()
