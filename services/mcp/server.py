@@ -25,10 +25,11 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from services.core.settings import settings  # loads Secrets Manager at cold start
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-DSN = os.getenv("DATABASE_URL", "")
+DSN = settings.DATABASE_URL or os.getenv("DATABASE_URL", "")
 _default_rag = (
     "https://api.probonoai.com.au"
     if os.getenv("AWS_LAMBDA_FUNCTION_NAME")

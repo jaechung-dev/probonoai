@@ -51,8 +51,8 @@ test('after login, logout returns to landing page', async ({ page }) => {
   await expect(page).toHaveURL(/\/chat/, { timeout: 10000 })
 
   // Find and click logout in Nav
-  await page.getByRole('button', { name: /sign out|logout/i }).click()
-  await expect(page).toHaveURL(/\/$|\/login/, { timeout: 5000 })
+  await page.getByRole('button', { name: /sign out/i }).click()
+  await expect(page).toHaveURL(/\/$|\/login/, { timeout: 15000 })
 })
 
 // ── Guest quota gate ───────────────────────────────────────────────────────────

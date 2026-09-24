@@ -20,16 +20,15 @@ export default function TimelineSection({ caseId }: { caseId: string }) {
       .catch(() => setErr('Could not load timeline.'))
   }, [caseId])
 
-  if (err) return (
-    <div className="py-16 text-center">
-      <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-      <p className="text-sm text-gray-400">{err}</p>
-    </div>
-  )
   return (
     <div>
       <h2 className="text-xl font-bold text-gray-900 mb-6">Case Timeline</h2>
-      {events ? <TimelineClient events={events} /> : <Spinner />}
+      {err ? (
+        <div className="py-16 text-center">
+          <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm text-gray-400">{err}</p>
+        </div>
+      ) : events ? <TimelineClient events={events} /> : <Spinner />}
     </div>
   )
 }

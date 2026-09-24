@@ -45,7 +45,7 @@ test('New case button in sidebar links to intake step 2', async ({ page }) => {
 
   const newCaseLink = page.getByRole('link', { name: /new case/i })
   await expect(newCaseLink).toBeVisible({ timeout: 10000 })
-  await expect(newCaseLink).toHaveAttribute('href', '/intake/?step=2')
+  await expect(newCaseLink).toHaveAttribute('href', '/intake?step=2')
 })
 
 test('Manage Cases section lists existing cases', async ({ page }) => {

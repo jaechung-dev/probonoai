@@ -84,6 +84,7 @@ export default function Nav() {
               <button
                 onClick={async () => { await logout(); navigate('/login') }}
                 title="Sign out"
+                aria-label="Sign out"
                 className="text-zinc-500 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
               >
                 <LogOut className="w-4 h-4" />

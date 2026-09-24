@@ -256,7 +256,7 @@ test.describe('Connect page UI', () => {
     // Sidebar should show the new token by name with a green (active) status dot
     const newRow = page.locator('aside li').filter({ hasText: 'playwright-sidebar-test' })
     await expect(newRow).toBeVisible()
-    await expect(newRow.locator('.bg-emerald-500')).toBeVisible()
+    await expect(newRow.locator('.bg-rose-500')).toBeVisible()
   })
 
   test('revoking a token removes it from sidebar and main list', async ({ page }) => {

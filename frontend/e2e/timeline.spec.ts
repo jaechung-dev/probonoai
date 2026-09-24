@@ -21,7 +21,7 @@ test('landing page clicking Sign in opens login modal', async ({ page }) => {
   await page.goto('/')
   // Click the Sign in button (appears in header and hero)
   await page.getByRole('button', { name: /sign in/i }).first().click()
-  await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /2 free messages/i })).toBeVisible()
   await expect(page.getByPlaceholder(/username/i)).toBeVisible()
 })
 
