@@ -25,20 +25,25 @@ def _connection_alive(conn: psycopg2.extensions.connection) -> bool:
 def _get_conn() -> psycopg2.extensions.connection:
     global _conn
     if _conn is None or not _connection_alive(_conn):
-        print(f"DB_CONNECT reuse={_conn is not None} closed={_conn.closed if _conn else 'N/A'}", flush=True)
+        import time as _t
+        t0 = _t.monotonic()
         _conn = psycopg2.connect(settings.DATABASE_URL)
-    else:
-        print("DB_REUSE", flush=True)
+        print(f"DB_CONNECT {(_t.monotonic()-t0)*1000:.0f}ms", flush=True)
     return _conn
 
 
 @contextmanager
 def get_db():
+    import time as _t
     global _conn
     conn = _get_conn()
     try:
+        t0 = _t.monotonic()
         yield conn
+        t1 = _t.monotonic()
         conn.commit()
+        t2 = _t.monotonic()
+        print(f"DB_QUERY {(t1-t0)*1000:.0f}ms COMMIT {(t2-t1)*1000:.0f}ms", flush=True)
     except Exception:
         try:
             conn.rollback()
