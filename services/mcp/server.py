@@ -232,7 +232,7 @@ app = CORSMiddleware(
 )
 
 from mangum import Mangum  # noqa: E402
-handler = Mangum(app, lifespan="off")
+handler = Mangum(app, lifespan="auto")  # "off" skips ASGI lifespan -> FastMCP session_manager task group never inits
 
 if __name__ == "__main__":
     import uvicorn
