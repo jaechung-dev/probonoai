@@ -26,6 +26,7 @@ _ALLOWED_ORIGINS = list({
     "https://probonoai.com.au",
     "http://localhost:5173",
     "http://localhost:4173",
+    "http://localhost:20001",
 })
 
 app.add_middleware(AccessLogMiddleware)

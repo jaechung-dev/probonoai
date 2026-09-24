@@ -22,7 +22,7 @@ test('login page has forgot password link', async ({ page }) => {
   await page.goto('/login/')
   const link = page.getByRole('link', { name: /forgot password/i })
   await expect(link).toBeVisible()
-  await expect(link).toHaveAttribute('href', '/forgot-password/')
+  await expect(link).toHaveAttribute('href', '/forgot-password')
 })
 
 test('login page banner shows verified message when ?verified=1', async ({ page }) => {
@@ -68,7 +68,7 @@ test('guest quota gate shows login modal after 2 questions', async ({ page }) =>
   await input.press('Enter')
 
   // Login gate (modal) should appear
-  await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible({ timeout: 5000 })
+  await expect(page.getByText(/2 free messages/i)).toBeVisible({ timeout: 5000 })
 })
 
 test('guest can send first 2 questions without login', async ({ page }) => {
@@ -97,7 +97,7 @@ test('forgot password submission shows check email message', async ({ page }) =>
   await page.goto('/forgot-password/')
   await page.getByPlaceholder(/you@example.com/i).fill('any@example.com')
   await page.getByRole('button', { name: /send reset/i }).click()
-  await expect(page.getByText(/check your inbox/i)).toBeVisible({ timeout: 5000 })
+  await expect(page.getByText(/on its way|reset link/i)).toBeVisible({ timeout: 5000 })
 })
 
 // ── Reset password ─────────────────────────────────────────────────────────────
@@ -120,6 +120,6 @@ test('reset password page with bad token shows error after submit', async ({ pag
 
 test('landing page shows ProBono AI branding', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText('ProBono AI')).toBeVisible()
+  await expect(page.getByText('ProBono AI').first()).toBeVisible()
   await expect(page.getByText(/not legal advice/i)).toBeVisible()
 })

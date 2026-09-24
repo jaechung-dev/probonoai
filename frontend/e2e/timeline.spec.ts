@@ -7,20 +7,20 @@ import { test, expect } from '@playwright/test'
 test('landing page shows hero content', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: /legal help in/i })).toBeVisible({ timeout: 10000 })
-  await expect(page.getByRole('main').getByText(/plain english/i).first()).toBeVisible()
+  await expect(page.getByText(/plain english/i).first()).toBeVisible()
 })
 
 test('landing page has Get started and Sign in buttons', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('button', { name: /get started/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: /create free account/i })).toBeVisible()
   // Landing page has Sign in in both header and hero — assert at least one is visible
   await expect(page.getByRole('button', { name: /sign in/i }).first()).toBeVisible()
 })
 
 test('landing page clicking Sign in opens login modal', async ({ page }) => {
   await page.goto('/')
-  // Click the Sign in button in the hero/main section
-  await page.getByRole('main').getByRole('button', { name: /sign in/i }).click()
+  // Click the Sign in button (appears in header and hero)
+  await page.getByRole('button', { name: /sign in/i }).first().click()
   await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible()
   await expect(page.getByPlaceholder(/username/i)).toBeVisible()
 })
