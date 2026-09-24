@@ -207,6 +207,19 @@ resource "aws_iam_role_policy_attachment" "lambda_mcp_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy" "lambda_mcp_secrets" {
+  name = "secrets-read"
+  role = aws_iam_role.lambda_mcp.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = aws_secretsmanager_secret.app.arn
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "lambda_ingest_secrets" {
   name = "secrets-read"
   role = aws_iam_role.lambda_ingest.id
