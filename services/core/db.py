@@ -25,7 +25,10 @@ def _connection_alive(conn: psycopg2.extensions.connection) -> bool:
 def _get_conn() -> psycopg2.extensions.connection:
     global _conn
     if _conn is None or not _connection_alive(_conn):
+        print(f"DB_CONNECT reuse={_conn is not None} closed={_conn.closed if _conn else 'N/A'}", flush=True)
         _conn = psycopg2.connect(settings.DATABASE_URL)
+    else:
+        print("DB_REUSE", flush=True)
     return _conn
 
 
