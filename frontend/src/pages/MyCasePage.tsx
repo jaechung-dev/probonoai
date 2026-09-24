@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Nav from '../components/Nav'
 import Spinner from '@/components/Spinner'
@@ -38,6 +38,7 @@ export default function MyCasePage() {
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null)
   const [detail, setDetail]             = useState<CaseDetail | null>(null)
   const [loadingCases, setLoadingCases] = useState(true)
+  const fetchedDetailForRef             = useRef<string | null>(null)
   const [sidebarOpen, setSidebarOpen]   = useState(false)
 
   useEffect(() => {
@@ -59,6 +60,8 @@ export default function MyCasePage() {
 
   useEffect(() => {
     if (!activeCaseId || !token) return
+    if (fetchedDetailForRef.current === activeCaseId) return
+    fetchedDetailForRef.current = activeCaseId
     setDetail(null)
     fetch(`${API}/case/${activeCaseId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
@@ -69,7 +72,12 @@ export default function MyCasePage() {
   const handleDeleted = useCallback((id: string) => {
     setCases(prev => {
       const next = prev.filter(c => c.id !== id)
-      if (activeCaseId === id) { setActiveCaseId(next[0]?.id ?? null); setDetail(null) }
+      if (activeCaseId === id) {
+        const nextId = next[0]?.id ?? null
+        fetchedDetailForRef.current = null
+        setActiveCaseId(nextId)
+        setDetail(null)
+      }
       return next
     })
   }, [activeCaseId])

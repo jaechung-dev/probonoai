@@ -2,12 +2,11 @@ import os
 from typing import Any
 from uuid import uuid4
 
-import psycopg2
 from psycopg2.extras import Json
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
-from services.core.settings import settings
+from services.core.db import get_db
 from services.api.deps import get_user_from_header
 
 router = APIRouter()
@@ -90,8 +89,7 @@ async def submit_intake(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = get_user_from_header(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO case_intakes (user_id, personal, matter, files) "
@@ -99,7 +97,4 @@ async def submit_intake(
             (user_id, Json(req.personal), Json(req.matter), Json(req.files)),
         )
         row = cur.fetchone()
-        conn.commit()
-    finally:
-        conn.close()
     return {"ok": True, "id": str(row[0]), "created_at": row[1].isoformat()}

@@ -1,11 +1,10 @@
 from typing import Any
 
-import psycopg2
 from psycopg2.extras import Json
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, field_validator
 
-from services.core.settings import settings
+from services.core.db import get_db
 from services.api.deps import require_auth
 
 router = APIRouter(prefix="/conversations")
@@ -40,8 +39,7 @@ async def list_conversations(
     authorization: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "SELECT id, title, updated_at, case_id FROM conversations "
@@ -49,8 +47,6 @@ async def list_conversations(
             (user_id,),
         )
         rows = cur.fetchall()
-    finally:
-        conn.close()
     return [
         {"id": str(r[0]), "title": r[1], "updated_at": r[2].isoformat(), "case_id": r[3]}
         for r in rows
@@ -63,8 +59,7 @@ async def create_conversation(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO conversations (user_id, title, case_id) VALUES (%s, %s, %s) "
@@ -72,9 +67,6 @@ async def create_conversation(
             (user_id, req.title[:200], req.case_id),
         )
         row = cur.fetchone()
-        conn.commit()
-    finally:
-        conn.close()
     return {"id": str(row[0]), "title": row[1], "updated_at": row[2].isoformat(), "case_id": row[3]}
 
 
@@ -84,8 +76,7 @@ async def get_conversation(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "SELECT id, title, updated_at, case_id, user_id FROM conversations WHERE id = %s",
@@ -102,8 +93,6 @@ async def get_conversation(
             (conv_id,),
         )
         msgs = cur.fetchall()
-    finally:
-        conn.close()
     return {
         "id": str(row[0]),
         "title": row[1],
@@ -128,8 +117,7 @@ async def delete_conversation(
     authorization: str | None = Header(default=None),
 ) -> None:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM conversations WHERE id = %s", (conv_id,))
         row = cur.fetchone()
@@ -138,9 +126,6 @@ async def delete_conversation(
         if row[0] != user_id:
             raise HTTPException(status_code=403, detail="Forbidden")
         cur.execute("DELETE FROM conversations WHERE id = %s", (conv_id,))
-        conn.commit()
-    finally:
-        conn.close()
 
 
 @router.patch("/{conv_id}")
@@ -150,8 +135,7 @@ async def patch_conversation(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM conversations WHERE id = %s", (conv_id,))
         row = cur.fetchone()
@@ -165,9 +149,6 @@ async def patch_conversation(
             (req.title[:200], conv_id),
         )
         updated = cur.fetchone()
-        conn.commit()
-    finally:
-        conn.close()
     return {
         "id": str(updated[0]),
         "title": updated[1],
@@ -185,8 +166,7 @@ async def append_messages(
     user_id = require_auth(authorization)
     if not messages:
         raise HTTPException(status_code=400, detail="No messages provided")
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM conversations WHERE id = %s", (conv_id,))
         row = cur.fetchone()
@@ -201,7 +181,4 @@ async def append_messages(
                 (conv_id, msg.role, msg.content, Json(msg.sources) if msg.sources else None),
             )
         cur.execute("UPDATE conversations SET updated_at = NOW() WHERE id = %s", (conv_id,))
-        conn.commit()
-    finally:
-        conn.close()
     return {"ok": True, "count": len(messages)}

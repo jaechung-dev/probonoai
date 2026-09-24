@@ -1,11 +1,11 @@
 from typing import Any
 
-import psycopg2
 from psycopg2.extras import Json
 from fastapi import APIRouter, Header, HTTPException
+
 from pydantic import BaseModel
 
-from services.core.settings import settings
+from services.core.db import get_db
 from services.api.deps import get_user_from_header, require_auth
 
 router = APIRouter()
@@ -20,8 +20,7 @@ async def get_user_case(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "SELECT id, matter, created_at FROM case_intakes "
@@ -29,8 +28,6 @@ async def get_user_case(
             (user_id,),
         )
         row = cur.fetchone()
-    finally:
-        conn.close()
     if not row:
         return {"case": None}
     return {"case": {"id": str(row[0]), "matter": row[1], "created_at": row[2].isoformat()}}
@@ -41,8 +38,7 @@ async def list_user_cases(
     authorization: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "SELECT id, matter, files, created_at FROM case_intakes "
@@ -50,8 +46,6 @@ async def list_user_cases(
             (user_id,),
         )
         rows = cur.fetchall()
-    finally:
-        conn.close()
     return [
         {
             "id": str(r[0]),
@@ -69,16 +63,13 @@ async def get_case_detail(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             "SELECT id, personal, matter, files, created_at, user_id FROM case_intakes WHERE id = %s",
             (case_id,),
         )
         row = cur.fetchone()
-    finally:
-        conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="Case not found")
     if row[5] != user_id:
@@ -98,8 +89,7 @@ async def delete_case(
     authorization: str | None = Header(default=None),
 ) -> None:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM case_intakes WHERE id = %s", (case_id,))
         row = cur.fetchone()
@@ -109,9 +99,6 @@ async def delete_case(
             raise HTTPException(status_code=403, detail="Forbidden")
         cur.execute("DELETE FROM case_chunks WHERE case_id = %s", (case_id,))
         cur.execute("DELETE FROM case_intakes WHERE id = %s", (case_id,))
-        conn.commit()
-    finally:
-        conn.close()
 
 
 @router.patch("/case/{case_id}/files")
@@ -121,8 +108,7 @@ async def update_case_files(
     authorization: str | None = Header(default=None),
 ) -> dict[str, bool]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id, files FROM case_intakes WHERE id = %s", (case_id,))
         row = cur.fetchone()
@@ -144,9 +130,6 @@ async def update_case_files(
             "UPDATE case_intakes SET files = %s WHERE id = %s",
             (Json(req.files), case_id),
         )
-        conn.commit()
-    finally:
-        conn.close()
     return {"ok": True}
 
 
@@ -156,10 +139,8 @@ def get_timeline(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user_id = require_auth(authorization)
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    try:
+    with get_db() as conn:
         cur = conn.cursor()
-        # Ownership: case_events carries no user_id, so verify via case_intakes.
         cur.execute("SELECT user_id FROM case_intakes WHERE id::text = %s", (case_id,))
         owner = cur.fetchone()
         if not owner:
@@ -172,8 +153,6 @@ def get_timeline(
             (case_id,),
         )
         rows = cur.fetchall()
-    finally:
-        conn.close()
     return {
         "case_id": case_id,
         "total": len(rows),
