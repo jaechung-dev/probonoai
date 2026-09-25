@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -57,6 +56,25 @@ def _db():
 
 def _h(s: str) -> str:
     return hashlib.sha256(s.encode()).hexdigest()
+
+
+# ── Allowed-hosts middleware ────────────────────────────────────────────────────
+# FastMCP's built-in DNS-rebinding protection rejects requests whose Host header
+# doesn't match localhost. Starlette-level allowlist lets prod requests through.
+
+_ALLOWED_HOSTS = {
+    "api.probonoai.com.au",
+    "127.0.0.1",
+    "localhost",
+}
+
+
+class AllowedHostsMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        host = request.headers.get("host", "").split(":")[0]
+        if host and host not in _ALLOWED_HOSTS:
+            return JSONResponse({"error": "Invalid host"}, status_code=421)
+        return await call_next(request)
 
 
 # ── Auth middleware ────────────────────────────────────────────────────────────
@@ -111,19 +129,11 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
 # ── FastMCP server ─────────────────────────────────────────────────────────────
 
-# FastMCP defaults to host="127.0.0.1", which auto-scopes allowed_hosts to
-# localhost only (DNS-rebinding protection) -- that rejects every real request
-# once deployed behind api.probonoai.com.au (421 Invalid Host header). Auth is
-# already enforced by MCPAuthMiddleware below, so explicitly allow the prod host.
 mcp = FastMCP(
     "Legal RAG",
     instructions=(
         "Legal intelligence platform — search NSW legislation and caselaw, "
         "ask questions in plain English."
-    ),
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=["api.probonoai.com.au", "127.0.0.1:*", "localhost:*"],
     ),
 )
 
@@ -233,7 +243,7 @@ def collections() -> str:
 _mcp_app = mcp.streamable_http_app()
 
 app = CORSMiddleware(
-    MCPAuthMiddleware(_mcp_app),
+    AllowedHostsMiddleware(MCPAuthMiddleware(_mcp_app)),
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*", "Authorization"],
@@ -241,7 +251,7 @@ app = CORSMiddleware(
 )
 
 from mangum import Mangum  # noqa: E402
-handler = Mangum(app, lifespan="auto")  # "off" skips ASGI lifespan -> FastMCP session_manager task group never inits
+handler = Mangum(app, lifespan="off")
 
 if __name__ == "__main__":
     import uvicorn
