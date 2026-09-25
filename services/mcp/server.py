@@ -21,6 +21,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from mcp.server.fastmcp import FastMCP
+try:
+    # Not present on every resolved `mcp` version (CI's pinned Python 3.12
+    # build has previously resolved one without this submodule --
+    # ModuleNotFoundError). Optional: when unavailable we just skip passing
+    # transport_security= below and rely solely on the outer
+    # AllowedHostsMiddleware for host-header enforcement in Lambda.
+    from mcp.server.transport_security import TransportSecuritySettings
+except ImportError:
+    TransportSecuritySettings = None
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -130,13 +139,25 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
 # ── FastMCP server ─────────────────────────────────────────────────────────────
 
-mcp = FastMCP(
-    "Legal RAG",
+# FastMCP ALSO runs its own internal transport_security check (independent of
+# the AllowedHostsMiddleware above), defaulting to localhost-only when no host
+# is given. That inner check was still rejecting api.probonoai.com.au with its
+# own 421 "Invalid Host header" even after the outer middleware passed the
+# request through -- confirmed via curl (Content-Length: 19 == len("Invalid Host header")).
+# Must override it here too.
+_mcp_kwargs = dict(
     instructions=(
         "Legal intelligence platform — search NSW legislation and caselaw, "
         "ask questions in plain English."
     ),
 )
+if TransportSecuritySettings is not None:
+    _mcp_kwargs["transport_security"] = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["api.probonoai.com.au", "127.0.0.1:*", "localhost:*"],
+    )
+
+mcp = FastMCP("Legal RAG", **_mcp_kwargs)
 
 
 @mcp.tool()
