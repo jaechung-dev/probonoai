@@ -252,7 +252,11 @@ app = CORSMiddleware(
 )
 
 from mangum import Mangum  # noqa: E402
-handler = Mangum(app, lifespan="off")
+handler = Mangum(app, lifespan="auto")  # DO NOT revert to "off" -- verified via CloudWatch
+# traceback that "off" skips the ASGI lifespan, so FastMCP's streamable-http
+# session_manager task group is never initialized: every request 500s with
+# RuntimeError("Task group is not initialized. Make sure to use run()."). See
+# mcp/server/streamable_http_manager.py:201 in the installed mcp package.
 
 if __name__ == "__main__":
     import uvicorn
