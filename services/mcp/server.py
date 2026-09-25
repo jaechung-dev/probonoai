@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -110,11 +111,19 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
 
 # ── FastMCP server ─────────────────────────────────────────────────────────────
 
+# FastMCP defaults to host="127.0.0.1", which auto-scopes allowed_hosts to
+# localhost only (DNS-rebinding protection) -- that rejects every real request
+# once deployed behind api.probonoai.com.au (421 Invalid Host header). Auth is
+# already enforced by MCPAuthMiddleware below, so explicitly allow the prod host.
 mcp = FastMCP(
     "Legal RAG",
     instructions=(
         "Legal intelligence platform — search NSW legislation and caselaw, "
         "ask questions in plain English."
+    ),
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["api.probonoai.com.au", "127.0.0.1:*", "localhost:*"],
     ),
 )
 
