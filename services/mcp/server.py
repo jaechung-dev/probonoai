@@ -306,16 +306,20 @@ from mangum import Mangum  # noqa: E402
 # We never call __aexit__, so the task group stays alive for the life of
 # the warm container, and each request is handled against the already-
 # running session manager instead of trying to start/stop it per request.
-import asyncio as _asyncio
+if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    # Only enter the session manager once at Lambda cold start.
+    # Skipped outside Lambda (uvicorn dev, unit tests) because uvicorn drives
+    # the ASGI lifespan itself, and the test stub has no real session manager.
+    import asyncio as _asyncio
 
-try:
-    _loop = _asyncio.get_event_loop()
-except RuntimeError:
-    _loop = _asyncio.new_event_loop()
-    _asyncio.set_event_loop(_loop)
+    try:
+        _loop = _asyncio.get_event_loop()
+    except RuntimeError:
+        _loop = _asyncio.new_event_loop()
+        _asyncio.set_event_loop(_loop)
 
-_session_manager_cm = mcp.session_manager.run()
-_loop.run_until_complete(_session_manager_cm.__aenter__())
+    _session_manager_cm = mcp.session_manager.run()
+    _loop.run_until_complete(_session_manager_cm.__aenter__())
 
 handler = Mangum(app, lifespan="off")
 
