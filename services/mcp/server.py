@@ -71,9 +71,10 @@ _ALLOWED_HOSTS = {
 
 class AllowedHostsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        host = request.headers.get("host", "").split(":")[0]
-        if host and host not in _ALLOWED_HOSTS:
-            return JSONResponse({"error": "Invalid host"}, status_code=421)
+        if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+            host = request.headers.get("host", "").split(":")[0]
+            if host and host not in _ALLOWED_HOSTS:
+                return JSONResponse({"error": "Invalid host"}, status_code=421)
         return await call_next(request)
 
 
