@@ -273,11 +273,51 @@ app = CORSMiddleware(
 )
 
 from mangum import Mangum  # noqa: E402
-handler = Mangum(app, lifespan="auto")  # DO NOT revert to "off" -- verified via CloudWatch
-# traceback that "off" skips the ASGI lifespan, so FastMCP's streamable-http
-# session_manager task group is never initialized: every request 500s with
-# RuntimeError("Task group is not initialized. Make sure to use run()."). See
-# mcp/server/streamable_http_manager.py:201 in the installed mcp package.
+
+# ── Lambda lifespan handling for FastMCP's streamable-http session manager ──
+#
+# DO NOT use lifespan="off": FastMCP's StreamableHTTPSessionManager task group
+# is only created inside the ASGI *lifespan* startup event, so skipping the
+# lifespan protocol entirely leaves it uninitialized and every request 500s
+# with RuntimeError("Task group is not initialized. Make sure to use run().")
+# -- see mcp/server/streamable_http_manager.py:201 in the installed package.
+#
+# DO NOT use lifespan="auto"/"on" either: read Mangum's own adapter.py --
+# Mangum.__call__() wraps EVERY SINGLE invocation in its own LifespanCycle
+# (ExitStack), i.e. it runs a full ASGI lifespan *startup* AND *shutdown* on
+# every request, not once per cold start. But session_manager.run() is a
+# single-use async context manager (StreamableHTTPSessionManager raises
+# "run() can only be called once per instance" if entered twice). So the
+# first request on a warm container succeeds (starts, handles it, shuts
+# down), and the very next request on that SAME warm container tries to
+# re-enter session_manager.run() and crashes with exactly that RuntimeError
+# -- confirmed via CloudWatch: `initialize` returned 200, then
+# `notifications/initialized` on the same container 500'd with
+# "StreamableHTTPSessionManager .run() can only be called once per
+# instance."
+#
+# Fix: keep Mangum out of lifespan management altogether (lifespan="off")
+# and instead enter session_manager.run() ourselves EXACTLY ONCE per Lambda
+# execution environment, here at module import / cold-start time, on the
+# same event loop Mangum reuses for every subsequent invocation (Mangum
+# pins one via asyncio.set_event_loop() in its constructor, and
+# HTTPCycle.__call__ later drives requests with
+# asyncio.get_event_loop().run_until_complete(...) against that same loop).
+# We never call __aexit__, so the task group stays alive for the life of
+# the warm container, and each request is handled against the already-
+# running session manager instead of trying to start/stop it per request.
+import asyncio as _asyncio
+
+try:
+    _loop = _asyncio.get_event_loop()
+except RuntimeError:
+    _loop = _asyncio.new_event_loop()
+    _asyncio.set_event_loop(_loop)
+
+_session_manager_cm = mcp.session_manager.run()
+_loop.run_until_complete(_session_manager_cm.__aenter__())
+
+handler = Mangum(app, lifespan="off")
 
 if __name__ == "__main__":
     import uvicorn
