@@ -5,6 +5,7 @@ Each retriever is a LangChain BaseRetriever that embeds the query with
 OpenAI text-embedding-3-small, then performs a cosine-distance lookup
 against the appropriate table.
 """
+import uuid as _uuid
 import psycopg2
 
 from langchain_core.retrievers import BaseRetriever
@@ -124,6 +125,11 @@ class CaseChunkRetriever(BaseRetriever):
         # Owner scoping is mandatory: never query case chunks without a user_id.
         if not self.user_id:
             return []
+        # case_id is a UUID column — reject non-UUID strings before hitting the DB.
+        try:
+            _uuid.UUID(self.case_id)
+        except (ValueError, AttributeError):
+            return []
         vec = get_embedder().embed_query(query)
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         conn = psycopg2.connect(DSN)
@@ -152,11 +158,16 @@ class CaseEventRetriever(BaseRetriever):
     """Semantic search over case timeline events for a specific case."""
 
     k: int = Field(default=5)
-    case_id: str = Field(default="nguyen")
+    case_id: str = Field(default="")
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
+        # case_id is a UUID column — reject non-UUID strings before hitting the DB.
+        try:
+            _uuid.UUID(self.case_id)
+        except (ValueError, AttributeError):
+            return []
         vec = get_embedder().embed_query(query)
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         conn = psycopg2.connect(DSN)

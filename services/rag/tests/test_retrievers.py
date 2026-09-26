@@ -153,7 +153,7 @@ class TestCaseEventRetriever(unittest.TestCase):
             patch("psycopg2.connect", return_value=_make_mock_conn(self._rows())),
         ):
             from services.rag.retrievers import CaseEventRetriever
-            r = CaseEventRetriever(k=1, case_id="nguyen")
+            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001")
             docs = r.invoke("bail hearing")
         self.assertIsInstance(docs, list)
         self.assertEqual(len(docs), 1)
@@ -164,7 +164,7 @@ class TestCaseEventRetriever(unittest.TestCase):
             patch("psycopg2.connect", return_value=_make_mock_conn(self._rows())),
         ):
             from services.rag.retrievers import CaseEventRetriever
-            r = CaseEventRetriever(k=1, case_id="nguyen")
+            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001")
             docs = r.invoke("bail hearing")
         self.assertIn("Hearing", docs[0].page_content)
         self.assertEqual(docs[0].metadata["source"], "case_event")

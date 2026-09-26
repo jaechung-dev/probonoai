@@ -54,7 +54,7 @@ class SearchRequest(BaseModel):
     query: str
     source: str = "legislation"
     jurisdiction: str = "NSW"
-    case_id: str = "nguyen"
+    case_id: str = ""
     k: int = 5
 
     @field_validator("source")
@@ -69,7 +69,7 @@ class AskRequest(BaseModel):
     question: str
     source: str = "legislation"
     jurisdiction: str = "NSW"
-    case_id: str = "nguyen"
+    case_id: str = ""
     k: int = 4
 
     @field_validator("source")
