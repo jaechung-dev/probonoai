@@ -124,7 +124,7 @@ def process_file(bucket: str, key: str) -> None:
         filename = Path(key).name
         events = _extract_timeline_events(text, filename)
         if events:
-            _store_timeline_events(case_id, key, events)
+            _store_timeline_events(user_id, case_id, key, events)
 
 
 # ── Parsing ────────────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ def _extract_timeline_events(text: str, filename: str) -> list[dict]:
         return []
 
 
-def _store_timeline_events(case_id: str, source_key: str, events: list[dict]) -> None:
+def _store_timeline_events(user_id: str, case_id: str, source_key: str, events: list[dict]) -> None:
     """Embed and upsert timeline events into case_events. Re-upload safe: deletes old events from same source first."""
     texts = [f"{e.get('subject', '')} {e.get('summary', '')}".strip() for e in events]
     embeddings = _embed(texts)
@@ -292,18 +292,19 @@ def _store_timeline_events(case_id: str, source_key: str, events: list[dict]) ->
         cur = conn.cursor()
         # Remove previous events from this source file so re-uploads don't duplicate
         cur.execute(
-            "DELETE FROM case_events WHERE case_id = %s AND attachments @> %s::jsonb",
-            (case_id, json.dumps([{"key": source_key}])),
+            "DELETE FROM case_events WHERE user_id = %s AND case_id = %s AND attachments @> %s::jsonb",
+            (user_id, case_id, json.dumps([{"key": source_key}])),
         )
         for event, emb in zip(events, embeddings):
             emb_str = "[" + ",".join(str(x) for x in emb) + "]"
             cur.execute(
                 """
                 INSERT INTO case_events
-                    (case_id, date, category, event_type, subject, summary, content, attachments, embedding)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::vector)
+                    (user_id, case_id, date, category, event_type, subject, summary, content, attachments, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::vector)
                 """,
                 (
+                    user_id,
                     case_id,
                     event.get("date"),
                     event.get("category", "Other"),

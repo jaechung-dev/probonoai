@@ -14,10 +14,12 @@ import os
 import json
 import logging
 import hashlib
+import time
 import requests
 import psycopg2
 from contextlib import contextmanager
 from dotenv import load_dotenv
+from jose import jwt as _jwt
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s", force=True)
 log = logging.getLogger("mcp.server")
@@ -39,6 +41,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from services.core.settings import settings  # loads Secrets Manager at cold start
+
+# ── Internal JWT (server-to-server auth for RAG service calls) ─────────────────
+
+
+def _mint_internal_jwt(user_id: str) -> str:
+    now = int(time.time())
+    payload = {"sub": user_id, "aud": "probonoai-api", "iat": now, "exp": now + 60}
+    return _jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALG)
+
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -185,16 +196,22 @@ mcp = FastMCP("Legal RAG", **_mcp_kwargs)
 
 
 @mcp.tool()
-def search(query: str, source: str = "legislation", k: int = 5) -> str:
+def search(query: str, source: str = "legislation", k: int = 5, case_id: str = "", ctx: Context = None) -> str:
     """
     Search NSW legislation and caselaw semantically.
     source: 'legislation' | 'caselaw' | 'both' | 'case_events'
+    case_id: optional — scope case_events searches to a specific case.
     Returns top-k relevant chunks with citations.
     """
-    log.info("search request: query=%r source=%s k=%d", query, source, k)
+    user_id = ctx.request_context.request.state.user_id if ctx else "anon"
+    log.info("search request: query=%r source=%s k=%d case_id=%r user_id=%s", query, source, k, case_id, user_id)
+    body = {"query": query, "source": source, "jurisdiction": "NSW", "k": k}
+    if case_id:
+        body["case_id"] = case_id
     r = requests.post(
         f"{RAG_URL}/search",
-        json={"query": query, "source": source, "jurisdiction": "NSW", "k": k},
+        json=body,
+        headers={"Authorization": f"Bearer {_mint_internal_jwt(user_id)}"},
         timeout=30,
     )
     r.raise_for_status()
@@ -211,15 +228,21 @@ def search(query: str, source: str = "legislation", k: int = 5) -> str:
 
 
 @mcp.tool()
-def ask(question: str, source: str = "both", k: int = 5) -> str:
+def ask(question: str, source: str = "both", k: int = 5, case_id: str = "", ctx: Context = None) -> str:
     """
     Ask a legal question in plain English. Returns an answer backed by NSW legislation and caselaw.
     source: 'legislation' | 'caselaw' | 'both'
+    case_id: optional — include the user's own uploaded case documents in the answer.
     """
-    log.info("ask request: question=%r source=%s k=%d", question, source, k)
+    user_id = ctx.request_context.request.state.user_id if ctx else "anon"
+    log.info("ask request: question=%r source=%s k=%d case_id=%r user_id=%s", question, source, k, case_id, user_id)
+    body = {"question": question, "messages": [], "k": k}
+    if case_id:
+        body["case_id"] = case_id
     r = requests.post(
         f"{RAG_URL}/chat",
-        json={"question": question, "messages": [], "k": k},
+        json=body,
+        headers={"Authorization": f"Bearer {_mint_internal_jwt(user_id)}"},
         timeout=120,
         stream=True,
     )
