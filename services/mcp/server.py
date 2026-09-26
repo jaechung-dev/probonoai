@@ -201,9 +201,10 @@ def search(query: str, source: str = "legislation", k: int = 5) -> str:
     results = r.json()["results"]
     output  = f"Search: '{query}' ({source}, {len(results)} results)\n\n"
     for i, res in enumerate(results, 1):
-        citation = res["metadata"].get("citation") or res["metadata"].get("case_name", "")
-        score    = res["metadata"].get("score", 0)
-        output  += f"[{i}] {citation} (relevance: {score})\n{res['content']}\n\n"
+        citation      = res["metadata"].get("citation") or res["metadata"].get("case_name", "")
+        score         = res["metadata"].get("score", 0)
+        display_score = min(round(score * 200), 99)
+        output  += f"[{i}] {citation} (relevance: {display_score}%)\n{res['content']}\n\n"
     citations = [r["metadata"].get("citation") or r["metadata"].get("case_name", "") for r in results]
     log.info("search response: %d results citations=%s", len(results), citations)
     return output
@@ -242,7 +243,8 @@ def ask(question: str, source: str = "both", k: int = 5) -> str:
 
     output = f"Answer:\n{answer}\n\nSources used:\n"
     for s in sources[:5]:
-        output += f"- {s['citation']} ({s['source_type']}, relevance: {s['score']})\n"
+        display_score = min(round(s['score'] * 200), 99)
+        output += f"- {s['citation']} ({s['source_type']}, relevance: {display_score}%)\n"
     log.info("ask response: answer_chars=%d sources=%s", len(answer), [s["citation"] for s in sources[:5]])
     return output
 
