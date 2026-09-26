@@ -12,11 +12,15 @@ or via uvicorn:
 """
 import os
 import json
+import logging
 import hashlib
 import requests
 import psycopg2
 from contextlib import contextmanager
 from dotenv import load_dotenv
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+log = logging.getLogger("mcp.server")
 
 load_dotenv()
 
@@ -167,6 +171,7 @@ def search(query: str, source: str = "legislation", k: int = 5) -> str:
     source: 'legislation' | 'caselaw' | 'both' | 'case_events'
     Returns top-k relevant chunks with citations.
     """
+    log.info("search request: query=%r source=%s k=%d", query, source, k)
     r = requests.post(
         f"{RAG_URL}/search",
         json={"query": query, "source": source, "jurisdiction": "NSW", "k": k},
@@ -179,6 +184,8 @@ def search(query: str, source: str = "legislation", k: int = 5) -> str:
         citation = res["metadata"].get("citation") or res["metadata"].get("case_name", "")
         score    = res["metadata"].get("score", 0)
         output  += f"[{i}] {citation} (relevance: {score})\n{res['content']}\n\n"
+    citations = [r["metadata"].get("citation") or r["metadata"].get("case_name", "") for r in results]
+    log.info("search response: %d results citations=%s", len(results), citations)
     return output
 
 
@@ -188,6 +195,7 @@ def ask(question: str, source: str = "both", k: int = 5) -> str:
     Ask a legal question in plain English. Returns an answer backed by NSW legislation and caselaw.
     source: 'legislation' | 'caselaw' | 'both'
     """
+    log.info("ask request: question=%r source=%s k=%d", question, source, k)
     r = requests.post(
         f"{RAG_URL}/chat",
         json={"question": question, "messages": [], "k": k},
@@ -215,6 +223,7 @@ def ask(question: str, source: str = "both", k: int = 5) -> str:
     output = f"Answer:\n{answer}\n\nSources used:\n"
     for s in sources[:5]:
         output += f"- {s['citation']} ({s['source_type']}, relevance: {s['score']})\n"
+    log.info("ask response: answer_chars=%d sources=%s", len(answer), [s["citation"] for s in sources[:5]])
     return output
 
 
@@ -224,20 +233,24 @@ def fetch(case_id: str) -> str:
     Fetch all timeline events for a case.
     case_id: e.g. 'nguyen'
     """
+    log.info("fetch request: case_id=%r", case_id)
     r = requests.get(f"{RAG_URL}/case/{case_id}/timeline", timeout=15)
     if r.status_code == 404:
+        log.info("fetch response: case_id=%r not found", case_id)
         return f"Case '{case_id}' not found."
     r.raise_for_status()
     data   = r.json()
     output = f"Case: {case_id} — {data['total']} events\n\n"
     for e in data["events"]:
         output += f"[{e['date']}] {e['category']} — {e['subject']}\n{e['summary']}\n\n"
+    log.info("fetch response: case_id=%r events=%d", case_id, data["total"])
     return output
 
 
 @mcp.tool()
 def collections() -> str:
     """List available data collections and their sizes."""
+    log.info("collections request")
     r = requests.get(f"{RAG_URL}/health", timeout=10)
     r.raise_for_status()
     try:
@@ -251,6 +264,7 @@ def collections() -> str:
             event_cases = cur.fetchone()[0]
     except Exception:
         leg_count = case_count = event_cases = "unknown"
+    log.info("collections response: legislation=%s caselaw=%s case_events=%s", leg_count, case_count, event_cases)
     return (
         "Available collections:\n"
         f"- legislation  : {leg_count:,} NSW legislation chunks (OALC corpus, text-embedding-3-small)\n"
