@@ -47,7 +47,11 @@ def _install_mcp_stub():
                     await send({"type": "http.response.body", "body": b"{}", "more_body": False})
             return _asgi
 
+    class _FakeContext:
+        pass
+
     mcp_fastmcp.FastMCP = _FakeFastMCP
+    mcp_fastmcp.Context = _FakeContext
 
     mcp_mod.server = mcp_server
     mcp_server.fastmcp = mcp_fastmcp

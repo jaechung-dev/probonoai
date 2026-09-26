@@ -24,7 +24,7 @@ log = logging.getLogger("mcp.server")
 
 load_dotenv()
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context
 try:
     # Not present on every resolved `mcp` version (CI's pinned Python 3.12
     # build has previously resolved one without this submodule --
@@ -248,22 +248,30 @@ def ask(question: str, source: str = "both", k: int = 5) -> str:
 
 
 @mcp.tool()
-def fetch(case_id: str) -> str:
+def fetch(case_id: str, ctx: Context) -> str:
     """
-    Fetch all timeline events for a case.
-    case_id: e.g. 'nguyen'
+    Fetch all timeline events for the authenticated user's own case.
+    case_id: e.g. 'test-case-001'
+    Only returns events owned by the user whose MCP token was used — never
+    another user's data, even if the case_id is guessed correctly.
     """
-    log.info("fetch request: case_id=%r", case_id)
-    r = requests.get(f"{RAG_URL}/case/{case_id}/timeline", timeout=15)
-    if r.status_code == 404:
-        log.info("fetch response: case_id=%r not found", case_id)
-        return f"Case '{case_id}' not found."
-    r.raise_for_status()
-    data   = r.json()
-    output = f"Case: {case_id} — {data['total']} events\n\n"
-    for e in data["events"]:
-        output += f"[{e['date']}] {e['category']} — {e['subject']}\n{e['summary']}\n\n"
-    log.info("fetch response: case_id=%r events=%d", case_id, data["total"])
+    user_id = ctx.request_context.request.state.user_id
+    log.info("fetch request: case_id=%r user_id=%s", case_id, user_id)
+    with _db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT date, category, subject, summary FROM case_events "
+            "WHERE user_id = %s AND case_id = %s ORDER BY date",
+            (user_id, case_id),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        log.info("fetch response: case_id=%r user_id=%s — no events found", case_id, user_id)
+        return f"No events found for case '{case_id}' (or you don't have access to it)."
+    output = f"Case: {case_id} — {len(rows)} events\n\n"
+    for date, category, subject, summary in rows:
+        output += f"[{date}] {category} — {subject}\n{summary}\n\n"
+    log.info("fetch response: case_id=%r user_id=%s events=%d", case_id, user_id, len(rows))
     return output
 
 
