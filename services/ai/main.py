@@ -33,8 +33,7 @@ from services.rag.retrievers import (
 )
 from services.rag.chains import (
     format_docs,
-    stream_single,
-    stream_both,
+    stream_ask as _stream_ask,
     stream_chat as _stream_chat,
     CHAT_MODEL,
 )
@@ -176,6 +175,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MIN_CASE_SCORE = 0.20
+
+
+def _fetch_case_docs(case_id: str, user: str, question: str, k: int):
+    """Retrieve and score-gate case document chunks. Enforces auth; cross-user case_id yields []."""
+    if user == "anon":
+        raise HTTPException(status_code=401, detail="Authentication required to query case documents")
+    raw = CaseChunkRetriever(case_id=case_id, user_id=user, k=k).invoke(question)
+    return [d for d in raw if d.metadata.get("score", 0) >= MIN_CASE_SCORE]
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 
@@ -221,31 +231,59 @@ async def ask(
 ) -> StreamingResponse:
     user = _get_user_from_header(authorization)
 
+    # Retrieve base docs for the requested source.
     if req.source == "both":
         leg = LegislationRetriever(k=req.k // 2 + 1, jurisdiction=req.jurisdiction)
         cas = CaselawRetriever(k=req.k // 2 + 1)
-        leg_docs = leg.invoke(req.question)
-        cas_docs = cas.invoke(req.question)
-        return StreamingResponse(
-            stream_both(leg_docs, cas_docs, req.question, _log_request, user, req.source, req.k),
-            media_type="text/event-stream",
-            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
-        )
-
-    if req.source == "caselaw":
-        retriever = CaselawRetriever(k=req.k)
+        all_docs = leg.invoke(req.question) + cas.invoke(req.question)
+    elif req.source == "caselaw":
+        all_docs = CaselawRetriever(k=req.k).invoke(req.question)
     elif req.source == "case_events":
-        # Case events are private; verify ownership when a case is specified.
         cid = req.case_id or ""
         if cid:
             _require_case_owner(cid, user)
-        retriever = CaseEventRetriever(k=req.k, case_id=cid)
+        all_docs = CaseEventRetriever(k=req.k, case_id=cid).invoke(req.question)
     else:
-        retriever = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction)
+        all_docs = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction).invoke(req.question)
+
+    # Prepend user's case document chunks when case_id is provided.
+    case_docs = []
+    if req.case_id and req.source != "case_events":
+        case_docs = _fetch_case_docs(req.case_id, user, req.question, req.k)
+        all_docs = case_docs + all_docs
+
+    sources = [
+        {
+            "citation":    d.metadata.get("citation") or d.metadata.get("case_name") or d.metadata.get("source", ""),
+            "content":     d.page_content,
+            "score":       d.metadata.get("score", 0),
+            "source_type": d.metadata.get("source", ""),
+        }
+        for d in all_docs
+    ]
+
+    context = format_docs(all_docs)
+    if len(context) > 24_000:
+        context = context[:24_000] + "\n\n[Context truncated to fit token budget]"
+
+    no_doc_warning = ""
+    if req.case_id and req.source != "case_events" and not case_docs:
+        no_doc_warning = (
+            "\n\nIMPORTANT: No uploaded case documents were found relevant to this question. "
+            "Do NOT answer as though you know the user's specific situation. "
+            "If the question is about their personal case, tell them you have no relevant documents "
+            "and suggest they upload the relevant documents or consult a qualified lawyer."
+        )
+
+    lc_messages = [
+        SystemMessage(content=PLAIN_ENGLISH_SYSTEM + no_doc_warning + "\n\nRelevant legal context:\n" + context),
+        HumanMessage(content=req.question),
+    ]
 
     return StreamingResponse(
-        stream_single(retriever, req.question, _log_request, user, req.source, req.k),
+        _stream_ask(lc_messages, sources, req.question, req.source, req.case_id or "", req.k, _log_request, user),
         media_type="text/event-stream",
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
@@ -256,18 +294,12 @@ async def chat(
 ) -> StreamingResponse:
     user = _get_user_from_header(authorization)
 
-    MIN_CASE_SCORE = 0.20
     leg = LegislationRetriever(k=req.k, jurisdiction="NSW")
     cas = CaselawRetriever(k=req.k)
     all_docs = leg.invoke(req.question) + cas.invoke(req.question)
     case_docs = []
     if req.case_id:
-        # Case documents are private. Anonymous callers can't query them, and the
-        # retriever is scoped by user_id so another user's case_id yields nothing.
-        if user == "anon":
-            raise HTTPException(status_code=401, detail="Authentication required to query case documents")
-        raw_case_docs = CaseChunkRetriever(case_id=req.case_id, user_id=user, k=req.k).invoke(req.question)
-        case_docs = [d for d in raw_case_docs if d.metadata.get("score", 0) >= MIN_CASE_SCORE]
+        case_docs = _fetch_case_docs(req.case_id, user, req.question, req.k)
         all_docs = case_docs + all_docs
 
     sources = [

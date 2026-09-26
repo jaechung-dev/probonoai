@@ -192,6 +192,54 @@ async def stream_both(
     ))
 
 
+async def stream_ask(
+    lc_messages: list,
+    sources: list[dict],
+    question: str,
+    source: str,
+    case_id: str,
+    k: int,
+    log_request_fn,
+    user: str,
+) -> AsyncIterator[str]:
+    """
+    Stream SSE events for the /ask endpoint.
+    Same wire format as stream_chat (sources event first, then typed token events)
+    so MCP and frontend consumers share one parsing path.
+    """
+    yield f"data: {json.dumps({'type': 'sources', 'docs': sources})}\n\n"
+    buffer = ""
+    emitted = 0
+    chunks = 0
+    t0 = time.time()
+    async for chunk in get_llm().astream(lc_messages):
+        token = chunk.content if hasattr(chunk, "content") else str(chunk)
+        if not token:
+            continue
+        buffer += token
+        chunks += 1
+        safe = _safe_visible(buffer)
+        if len(safe) > emitted:
+            yield f"data: {json.dumps({'type': 'token', 'text': safe[emitted:]})}\n\n"
+            emitted = len(safe)
+    final = _strip_think_blocks(buffer)
+    if len(final) > emitted:
+        yield f"data: {json.dumps({'type': 'token', 'text': final[emitted:]})}\n\n"
+    elapsed_ms = round((time.time() - t0) * 1000)
+    logger.info(
+        "ask question=%r source=%s k=%d case_id=%s user=%s elapsed_ms=%d chunks=%d",
+        question[:120], source, k, case_id or "", user, elapsed_ms, chunks,
+    )
+    yield "data: [DONE]\n\n"
+    asyncio.create_task(log_request_fn(
+        endpoint="/ask",
+        user_id=user,
+        input_data={"question": question, "source": source, "k": k, "case_id": case_id or ""},
+        output_data={"answer": strip_think(buffer)},
+        elapsed_ms=elapsed_ms,
+    ))
+
+
 async def stream_chat(
     lc_messages: list,
     sources: list[dict],

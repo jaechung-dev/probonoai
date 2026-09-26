@@ -236,11 +236,11 @@ def ask(question: str, source: str = "both", k: int = 5, case_id: str = "", ctx:
     """
     user_id = ctx.request_context.request.state.user_id if ctx else "anon"
     log.info("ask request: question=%r source=%s k=%d case_id=%r user_id=%s", question, source, k, case_id, user_id)
-    body = {"question": question, "messages": [], "k": k}
+    body = {"question": question, "source": source, "k": k}
     if case_id:
         body["case_id"] = case_id
     r = requests.post(
-        f"{RAG_URL}/chat",
+        f"{RAG_URL}/ask",
         json=body,
         headers={"Authorization": f"Bearer {_mint_internal_jwt(user_id)}"},
         timeout=120,
