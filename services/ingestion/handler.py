@@ -120,7 +120,7 @@ def process_file(bucket: str, key: str) -> None:
     _store_chunks(user_id, case_id, chunks, embeddings)
     _mark_file_ready(user_id, case_id, key)
 
-    if case_id:
+    if case_id and user_id != "anon":
         filename = Path(key).name
         events = _extract_timeline_events(text, filename)
         if events:

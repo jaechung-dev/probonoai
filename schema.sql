@@ -6,6 +6,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Case timeline events
 CREATE TABLE IF NOT EXISTS case_events (
     id           SERIAL PRIMARY KEY,
+    user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
     case_id      TEXT NOT NULL,
     date         DATE NOT NULL,
     category     TEXT,
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS case_events (
     embedding    vector(1536)
 );
 CREATE INDEX IF NOT EXISTS case_events_case_id_idx ON case_events (case_id);
+CREATE INDEX IF NOT EXISTS case_events_user_case_idx ON case_events (user_id, case_id);
 CREATE INDEX IF NOT EXISTS case_events_embedding_idx ON case_events
     USING hnsw (embedding vector_cosine_ops);
 
