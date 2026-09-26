@@ -19,7 +19,7 @@ import psycopg2
 from contextlib import contextmanager
 from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s", force=True)
 log = logging.getLogger("mcp.server")
 
 load_dotenv()
