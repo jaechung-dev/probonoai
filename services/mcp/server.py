@@ -161,6 +161,15 @@ if TransportSecuritySettings is not None:
         allowed_hosts=["api.probonoai.com.au", "127.0.0.1:*", "localhost:*"],
     )
 
+# Lambda can route two requests with the same mcp-session-id to different
+# containers (or recycle the one that held the session), making in-memory
+# session state useless. stateless_http=True tells FastMCP to handle each
+# request independently with no server-side session — the right model for
+# Lambda. The cold-start session_manager.run() below is still required even
+# in stateless mode because the task group must be initialized before any
+# request is dispatched (see streamable_http_manager.py:160).
+_mcp_kwargs["stateless_http"] = True
+
 mcp = FastMCP("Legal RAG", **_mcp_kwargs)
 
 
