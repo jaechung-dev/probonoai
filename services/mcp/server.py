@@ -88,6 +88,17 @@ class AllowedHostsMiddleware(BaseHTTPMiddleware):
             host = request.headers.get("host", "").split(":")[0]
             if host and host not in _ALLOWED_HOSTS:
                 return JSONResponse({"error": "Invalid host"}, status_code=421)
+            # GET /mcp opens a keep-alive SSE stream for server-initiated events.
+            # Lambda can't hold long-lived connections, and stateless mode has no
+            # server-initiated events anyway — reject immediately instead of hanging
+            # for the full function timeout.
+            if request.method == "GET" and request.url.path.rstrip("/") == "/mcp":
+                log.info("GET /mcp rejected (SSE not supported in Lambda stateless mode)")
+                return JSONResponse(
+                    {"error": "SSE stream not supported in stateless mode"},
+                    status_code=405,
+                    headers={"Allow": "POST"},
+                )
         return await call_next(request)
 
 
