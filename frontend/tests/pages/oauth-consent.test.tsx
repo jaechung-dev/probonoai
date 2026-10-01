@@ -57,6 +57,18 @@ describe('OAuthConsentPage', () => {
     await waitFor(() => expect(window.location.href).toContain('code=c'))
   })
 
+  test('forwards the RFC 8707 resource parameter (MCP connector)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ redirect_to: `${REDIRECT}?code=c&state=s1` }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    Object.defineProperty(window, 'location', { value: { href: '' }, writable: true })
+    renderPage(`${QS}&resource=${encodeURIComponent('https://api.probonoai.com.au/mcp')}`)
+    fireEvent.click(screen.getByRole('button', { name: /allow/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).resource).toBe('https://api.probonoai.com.au/mcp')
+  })
+
   test('refuses to follow a redirect to a different host', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true, json: async () => ({ redirect_to: 'https://evil.example/cb?code=c' }),

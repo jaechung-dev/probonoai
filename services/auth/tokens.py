@@ -30,6 +30,18 @@ AUD_WEB = "probonoai-api"
 AUD_GPT = "probonoai-gpt"
 ISSUER = "probonoai.com.au"
 
+# MCP connector tokens use the canonical MCP URL as `aud` (RFC 8707 resource indicator).
+MCP_ALLOWED_SCOPES = ["search", "ask", "cases:read"]
+
+
+def mcp_audience() -> str:
+    return settings.MCP_RESOURCE_URL
+
+
+def issuer() -> str:
+    return (settings.OAUTH_ISSUER or settings.BACKEND_URL).rstrip("/")
+
+
 LEGACY_SCOPES = ["search", "ask", "chat", "timeline"]
 WEB_SCOPES = LEGACY_SCOPES + [
     "cases:read", "cases:write", "conversations:read", "conversations:write",
@@ -176,11 +188,11 @@ def rate_limit_user(user_id: str, bucket: str, per_minute: int, per_hour: int) -
 
 def make_access_token(*, sub: str, email: str, name: str, role: str, scopes: list[str],
                       aud: str, ttl: timedelta, email_verified: bool = True,
-                      grant_id: str | None = None) -> str:
+                      grant_id: str | None = None, iss: str | None = None) -> str:
     claims = {
         "sub": sub, "email": email, "name": name, "role": role,
         "scopes": scopes, "email_verified": email_verified,
-        "iss": ISSUER, "aud": aud,
+        "iss": iss or ISSUER, "aud": aud,
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc) + ttl,
     }
@@ -249,6 +261,34 @@ def authenticate(authorization: str | None, scope: str | None = None) -> dict:
         effective = WEB_SCOPES if set(scopes) == set(LEGACY_SCOPES) else scopes
         if scope not in effective:
             raise HTTPException(403, "Insufficient scope")
+    return claims
+
+
+def authenticate_mcp(raw_token: str, scope: str | None = None) -> dict:
+    """Validate an OAuth access token presented to the MCP server.
+
+    Audience must be the MCP resource URL (so a token minted for the web app or the
+    GPT API can never be replayed here, and vice-versa). Same controls as GPT tokens:
+    scope allowlist, unrevoked grant, OpenAI IP allowlist, per-user rate limit.
+    Raises HTTPException(401/403/429).
+    """
+    try:
+        claims = jwt.decode(raw_token, settings.JWT_SECRET, algorithms=[settings.JWT_ALG],
+                            audience=mcp_audience(), issuer=issuer())
+    except Exception:
+        raise HTTPException(401, "invalid_token")
+    if not claims.get("sub") or not claims.get("gid"):
+        raise HTTPException(401, "invalid_token")
+    scopes = claims.get("scopes") or []
+    if scope and (scope not in MCP_ALLOWED_SCOPES or scope not in scopes):
+        security_alert("mcp_scope_denied", claims["sub"], detail={"wanted": scope})
+        raise HTTPException(403, "insufficient_scope")
+    if settings.GPT_ENFORCE_IP and not ip_allowed(request_ip.get(), settings.GPT_ALLOWED_CIDRS):
+        security_alert("mcp_token_wrong_ip", claims["sub"], detail={"ip": request_ip.get()})
+        raise HTTPException(403, "forbidden")
+    if not _grant_active(claims["gid"]):
+        raise HTTPException(401, "invalid_token")
+    rate_limit_user(claims["sub"], "mcp", settings.GPT_RATE_PER_MINUTE, settings.GPT_RATE_PER_HOUR)
     return claims
 
 

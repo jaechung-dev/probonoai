@@ -90,7 +90,7 @@ paths:
                     id: { type: string }
                     title: { type: string }
                     updated_at: { type: string }
-                    case_id: { type: string, nullable: true }
+                    case_id: { type: ["string", "null"] }
   /conversations/{conv_id}:
     get:
       operationId: getConversation

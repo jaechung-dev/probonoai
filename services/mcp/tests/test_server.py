@@ -30,7 +30,7 @@ def _install_mcp_stub():
         def __init__(self, *args, **kwargs):
             pass
 
-        def tool(self):
+        def tool(self, *a, **k):
             def decorator(fn):
                 return fn
             return decorator
