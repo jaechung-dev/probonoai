@@ -75,6 +75,16 @@ class Settings(BaseSettings):
     GPT_RATE_PER_MINUTE: int = 30
     GPT_RATE_PER_HOUR: int = 300
 
+    # ── MCP connector for ChatGPT (OAuth 2.0 authorization-code + PKCE) ────────
+    MCP_RESOURCE_URL: str = "https://api.probonoai.com.au/mcp"   # canonical resource / token `aud`
+    OAUTH_ISSUER: str = ""                       # defaults to BACKEND_URL
+    MCP_OAUTH_CLIENT_ID: str = ""
+    MCP_OAUTH_CLIENT_SECRET: str = ""            # keep in Secrets Manager
+    # Comma-separated EXACT redirect URIs. ChatGPT uses
+    # https://chatgpt.com/connector_platform_oauth_redirect when issuer
+    # identification (RFC 9207, which we send) is enabled.
+    MCP_OAUTH_REDIRECT_URIS: str = "https://chatgpt.com/connector_platform_oauth_redirect"
+
     # ── Long-lived MCP tokens ──────────────────────────────────────────────────
     MCP_TOKEN_DEFAULT_DAYS: int = 30
     MCP_TOKEN_MAX_DAYS: int = 90

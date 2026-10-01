@@ -41,3 +41,36 @@ or, if set too high, would trust a client-supplied entry — so always confirm w
 Search CloudWatch for `SECURITY_ALERT` (kinds: `refresh_token_reuse`, `oauth_refresh_token_reuse`,
 `gpt_token_wrong_ip`, `gpt_scope_denied`, `rate_limit_exceeded`, `oauth_bad_client_auth`,
 `gpt_grant_approved`). Add a metric filter + SNS alarm on them. Rows are also in `security_events`.
+
+---
+
+## ChatGPT MCP connector (OAuth) — replaces GPT Actions
+
+ChatGPT now connects to tools via MCP. The MCP server (`/mcp`, MCP Lambda) accepts
+OAuth 2.0 authorization-code + PKCE tokens issued by the same `/oauth` endpoints.
+
+**Server settings (Secrets Manager):**
+
+| Setting | Value |
+|---|---|
+| `MCP_OAUTH_CLIENT_ID` | random string (e.g. `probonoai-mcp-` + 16 hex) |
+| `MCP_OAUTH_CLIENT_SECRET` | `openssl rand -hex 32` |
+| `MCP_OAUTH_REDIRECT_URIS` | `https://chatgpt.com/connector_platform_oauth_redirect` (add `https://chatgpt.com/connector/oauth/<callback_id>` if ChatGPT shows one) |
+| `MCP_RESOURCE_URL` | `https://api.probonoai.com.au/mcp` (default) |
+| `OAUTH_ISSUER` | blank → `BACKEND_URL` |
+
+Cold-start the API and MCP Lambdas after changing secrets.
+
+**Scopes (read-only):** `search`, `ask`, `cases:read`. Tokens carry `aud` = MCP URL (RFC 8707),
+are bound to a revocable grant, and only work from OpenAI's IP ranges (same allowlist as GPT).
+The static `mcp-…` tokens from /connect keep working for local clients.
+
+**Discovery (public):** `/.well-known/oauth-protected-resource[/mcp]`,
+`/.well-known/oauth-authorization-server`. An unauthenticated `POST /mcp` returns
+`401` + `WWW-Authenticate: Bearer resource_metadata="…"`.
+
+**ChatGPT setup (Developer mode):** Settings → Connectors → Advanced → Developer mode →
+Create. MCP server URL `https://api.probonoai.com.au/mcp`, authentication OAuth, enter the
+client ID/secret above if asked (otherwise ChatGPT may use dynamic registration, which we do
+not support — use the pre-registered client). Pro plans can use read/fetch-only tools; all
+our tools are annotated read-only.

@@ -286,9 +286,11 @@ class TestOAuth(unittest.TestCase):
             oauth._validate_client("other", "https://chatgpt.com/aip/g-1/oauth/callback")
 
     def test_write_scope_cannot_be_requested(self):
+        from services.auth.tokens import GPT_ALLOWED_SCOPES
+        client = {"allowed": GPT_ALLOWED_SCOPES, "default": ["cases:read"], "kind": "gpt", "pkce": False}
         with self.assertRaises(HTTPException):
-            oauth._parse_scopes("cases:read cases:write")
-        self.assertEqual(oauth._parse_scopes("cases:read"), ["cases:read"])
+            oauth._parse_scopes(client, "cases:read cases:write")
+        self.assertEqual(oauth._parse_scopes(client, "cases:read"), ["cases:read"])
 
     def test_authorize_requires_pkce(self):
         with self.assertRaises(HTTPException):

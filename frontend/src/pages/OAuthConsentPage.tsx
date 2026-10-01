@@ -29,6 +29,7 @@ export default function OAuthConsentPage() {
   const scope        = params.get('scope') || ''
   const challenge    = params.get('code_challenge') || ''
   const challengeMth = params.get('code_challenge_method') || 'S256'
+  const resource     = params.get('resource') || ''   // RFC 8707 (MCP connector)
 
   const scopes = (scope.replace(/,/g, ' ').split(/\s+/).filter(Boolean))
   const shownScopes = scopes.length ? scopes : ['cases:read', 'conversations:read', 'search', 'ask']
@@ -57,7 +58,7 @@ export default function OAuthConsentPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           client_id: clientId, redirect_uri: redirectUri, scope, state,
-          code_challenge: challenge, code_challenge_method: challengeMth, approve,
+          code_challenge: challenge, code_challenge_method: challengeMth, resource, approve,
         }),
       })
       if (!r.ok) {
