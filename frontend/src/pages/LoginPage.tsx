@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import { Scale, ArrowRight, Check } from 'lucide-react'
 import { useAuth } from '@/context/auth'
 import { API_URL as API, APP_DOMAIN, APP_NAME } from '@/lib/config'
+import { safeNext, rememberNext } from '@/lib/nextPath'
 
 const FEATURES = [
   'NSW legislation & caselaw search',
@@ -35,6 +36,7 @@ function LoginBanner() {
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
@@ -46,7 +48,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(username, password)
-      navigate('/chat')
+      navigate(safeNext(searchParams.get('next')) || '/chat')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
@@ -117,7 +119,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={() => { window.location.href = `${API}/auth/google` }}
+            onClick={() => { rememberNext(safeNext(searchParams.get('next'))); window.location.href = `${API}/auth/google` }}
             className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 rounded-xl h-11 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
           >
             <GoogleIcon />

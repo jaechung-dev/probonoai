@@ -5,19 +5,22 @@ from jose import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from services.auth.tokens import client_ip_from_headers, request_ip
 from services.core.settings import settings
 
 
 class AccessLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.time()
+        # Trusted client IP (right-most-trusted XFF entry — the left side is
+        # attacker-controlled). Exposed to auth checks via a contextvar.
+        ip = client_ip_from_headers(
+            request.headers.get("x-forwarded-for", ""),
+            request.client.host if request.client else "-",
+        )
+        request_ip.set(ip)
         response = await call_next(request)
         ms = round((time.time() - start) * 1000)
-        ip = (
-            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-            or request.headers.get("x-real-ip", "")
-            or (request.client.host if request.client else "-")
-        )
         user = "-"
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer ") and settings.JWT_SECRET:

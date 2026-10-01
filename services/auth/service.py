@@ -7,6 +7,7 @@ Import and include this router in the BFF app:
     from services.auth.service import router as auth_router
     app.include_router(auth_router)
 """
+import base64
 import hashlib
 import secrets
 import uuid
@@ -23,6 +24,9 @@ from pydantic import BaseModel
 from services.core.settings import settings
 from services.core.db import get_db
 from services.core.cache import get_redis
+from services.auth.tokens import (
+    AUD_WEB, WEB_SCOPES, make_access_token, request_ip, require_web, security_alert,
+)
 
 # ── Config aliases (kept for backward-compat imports) ─────────────────────────
 
@@ -44,7 +48,7 @@ SEED_IDS = {
     "demo":  "00000000-0000-0000-0000-000000000001",
     "admin": "00000000-0000-0000-0000-000000000002",
 }
-SCOPES = ["search", "ask", "chat", "timeline"]
+SCOPES = WEB_SCOPES  # first-party web session scopes (see services/auth/tokens.py)
 
 # OAuth CSRF state is persisted in Postgres (see _store/_consume_oauth_state)
 # so it survives across concurrent Lambda instances; Redis is used as a fast
@@ -86,7 +90,7 @@ class OAuthTokenRequest(BaseModel):
 class MCPTokenRequest(BaseModel):
     name: str = "My MCP Token"
     scopes: list[str] = ["search", "ask", "fetch", "collections"]  # noqa: RUF012
-    expires_days: int = 365
+    expires_days: int = settings.MCP_TOKEN_DEFAULT_DAYS  # capped at MCP_TOKEN_MAX_DAYS
 
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
@@ -99,11 +103,48 @@ def _h(s: str) -> str:
 
 
 def _hash_password(password: str, salt: str) -> str:
+    """LEGACY salted SHA-256. Kept only to verify (and then upgrade) old hashes."""
     return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
 
+def _bcrypt_input(password: str) -> bytes:
+    # SHA-256 pre-hash (base64) removes bcrypt's 72-byte truncation / NUL issues.
+    return base64.b64encode(hashlib.sha256(password.encode()).digest())
+
+
+def _hash_password_bcrypt(password: str) -> str:
+    import bcrypt
+    return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt(rounds=12)).decode()
+
+
+def _is_bcrypt(stored_hash: str) -> bool:
+    return (stored_hash or "").startswith("$2")
+
+
 def _verify_password(password: str, salt: str, stored_hash: str) -> bool:
-    return _hash_password(password, salt) == stored_hash
+    """Constant-time verify of either a bcrypt hash or a legacy salted-SHA-256 hash."""
+    stored_hash = stored_hash or ""
+    if _is_bcrypt(stored_hash):
+        import bcrypt
+        try:
+            return bcrypt.checkpw(_bcrypt_input(password), stored_hash.encode())
+        except ValueError:
+            return False
+    return secrets.compare_digest(_hash_password(password, salt or ""), stored_hash)
+
+
+def _maybe_upgrade_hash(user_id: str, password: str, stored_hash: str) -> None:
+    """After a successful login, silently move legacy SHA-256 users to bcrypt."""
+    if _is_bcrypt(stored_hash):
+        return
+    try:
+        with _db() as conn:
+            conn.cursor().execute(
+                "UPDATE users SET password_hash=%s, salt=NULL WHERE id=%s",
+                (_hash_password_bcrypt(password), user_id),
+            )
+    except Exception as e:  # never block a login
+        print(f"REHASH_ERROR {e}", flush=True)
 
 
 def _db_user(email: str) -> dict | None:
@@ -185,19 +226,22 @@ def _make_jwt(
 
 def _issue(
     user_id: str, email: str, name: str, role: str,
-    email_verified: bool = True,
+    email_verified: bool = True, family_id: str | None = None,
 ) -> dict:
+    """Issue access + refresh. ``family_id`` ties a rotation chain together so a
+    replayed (already-rotated) refresh token can revoke the whole chain."""
     access = _make_jwt(user_id, name, role, SCOPES, hours=1, email=email, email_verified=email_verified)
     raw    = secrets.token_urlsafe(48)
     exp    = datetime.now(timezone.utc) + timedelta(days=30)
+    family_id = family_id or str(uuid.uuid4())
     with _db() as conn:
         cur = conn.cursor()
         cur.execute(
             "DELETE FROM refresh_tokens WHERE user_id=%s AND expires_at<NOW()", (user_id,)
         )
         cur.execute(
-            "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (%s,%s,%s)",
-            (user_id, _h(raw), exp),
+            "INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id) VALUES (%s,%s,%s,%s)",
+            (user_id, _h(raw), exp, family_id),
         )
     return {
         "access_token":  access,
@@ -341,12 +385,11 @@ def auth_register(req: RegisterRequest, response: Response):
         cur.execute("SELECT id FROM users WHERE email=%s", (email,))
         if cur.fetchone():
             raise HTTPException(409, "An account with this email already exists")
-        salt    = secrets.token_hex(16)
         user_id = str(uuid.uuid4())
         cur.execute(
             "INSERT INTO users (id,email,name,password_hash,salt,role,provider,email_verified) "
-            "VALUES (%s,%s,%s,%s,%s,'user','local',false)",
-            (user_id, email, req.name.strip(), _hash_password(req.password, salt), salt),
+            "VALUES (%s,%s,%s,%s,NULL,'user','local',false)",
+            (user_id, email, req.name.strip(), _hash_password_bcrypt(req.password)),
         )
 
     code = str(secrets.randbelow(900000) + 100000)
@@ -374,8 +417,9 @@ def auth_register(req: RegisterRequest, response: Response):
 @router.post("/login")
 async def auth_login(req: LoginRequest, request: Request, response: Response):
     await _rate_limit(f"rate:login:{req.username.lower().strip()}")
+    await _rate_limit(f"rate:login-ip:{request_ip.get() or 'unknown'}", max_attempts=30, window=900)
     seed = SEED_USERS.get(req.username)
-    if seed and seed["password"] == req.password:
+    if seed and seed["password"] and secrets.compare_digest(seed["password"].encode(), req.password.encode()):
         tokens = _issue(
             SEED_IDS[req.username], req.username, seed["name"], seed["role"], email_verified=True
         )
@@ -399,6 +443,7 @@ async def auth_login(req: LoginRequest, request: Request, response: Response):
         raise HTTPException(401, "This account uses Google sign-in. Use 'Continue with Google'.")
     if not _verify_password(req.password, user["salt"] or "", user["password_hash"] or ""):
         raise HTTPException(401, "Invalid email or password")
+    _maybe_upgrade_hash(user["id"], req.password, user["password_hash"] or "")
 
     tokens = _issue(user["id"], email, user["name"], user["role"],
                     email_verified=user["email_verified"])
@@ -415,27 +460,49 @@ async def auth_login(req: LoginRequest, request: Request, response: Response):
     }
 
 
+REFRESH_REUSE_GRACE_SECONDS = 10  # tolerate two tabs / a retried request racing a rotation
+
+
 @router.post("/refresh")
 def auth_refresh(request: Request, response: Response):
     raw = request.cookies.get("iai_refresh")
     if not raw:
         raise HTTPException(401, "Refresh token required")
+    reuse = None
     with _db() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT rt.user_id,u.email,u.name,u.role,u.email_verified "
+            "SELECT rt.id,rt.family_id,rt.used_at,rt.expires_at,rt.user_id,u.email,u.name,u.role,u.email_verified "
             "FROM refresh_tokens rt JOIN users u ON u.id=rt.user_id "
-            "WHERE rt.token_hash=%s AND rt.expires_at>NOW()",
+            "WHERE rt.token_hash=%s",
             (_h(raw),),
         )
         row = cur.fetchone()
-        if not row:
+        if not row or row[3] < datetime.now(timezone.utc):
             _clear_refresh_cookie(response)
             raise HTTPException(401, "Invalid or expired refresh token")
-        user_id, email, name, role, ev = row
-        cur.execute("DELETE FROM refresh_tokens WHERE token_hash=%s", (_h(raw),))
+        rt_id, family, used_at, _exp, user_id, email, name, role, ev = row
+        if used_at is not None:
+            if (datetime.now(timezone.utc) - used_at).total_seconds() <= REFRESH_REUSE_GRACE_SECONDS:
+                raise HTTPException(401, "Refresh already in progress")  # benign race; keep session
+            # An already-rotated token came back: someone holds a stolen copy.
+            if family:
+                cur.execute("DELETE FROM refresh_tokens WHERE family_id=%s", (family,))
+            else:
+                cur.execute("DELETE FROM refresh_tokens WHERE user_id=%s", (user_id,))
+            reuse = (str(user_id), email)
+        else:
+            cur.execute(
+                "UPDATE refresh_tokens SET used_at=now() WHERE id=%s AND used_at IS NULL", (rt_id,)
+            )
+            if cur.rowcount != 1:  # lost a race with a concurrent refresh
+                raise HTTPException(401, "Refresh already in progress")
+    if reuse:
+        _clear_refresh_cookie(response)
+        security_alert("refresh_token_reuse", reuse[0], reuse[1], notify_user=True)
+        raise HTTPException(401, "Session revoked for your safety. Please sign in again.")
 
-    tokens = _issue(user_id, email, name, role, email_verified=ev)
+    tokens = _issue(user_id, email, name, role, email_verified=ev, family_id=str(family) if family else None)
     _set_refresh_cookie(response, tokens["refresh_token"])
     return {
         "access_token": tokens["access_token"],
@@ -451,7 +518,10 @@ def auth_logout(request: Request, response: Response):
     if raw:
         with _db() as conn:
             conn.cursor().execute(
-                "DELETE FROM refresh_tokens WHERE token_hash=%s", (_h(raw),)
+                "DELETE FROM refresh_tokens WHERE family_id IN "
+                "(SELECT family_id FROM refresh_tokens WHERE token_hash=%s AND family_id IS NOT NULL) "
+                "OR token_hash=%s",
+                (_h(raw), _h(raw)),
             )
     _clear_refresh_cookie(response)
     return {"ok": True}
@@ -459,12 +529,7 @@ def auth_logout(request: Request, response: Response):
 
 @router.get("/me")
 def auth_me(authorization: str = Header(default=None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Bearer token required")
-    try:
-        p = jwt.decode(authorization[7:], JWT_SECRET, algorithms=[JWT_ALG])
-    except Exception:
-        raise HTTPException(401, "Invalid or expired token")
+    p = require_web(authorization)
     return {
         "username":       p.get("email"),
         "name":           p.get("name"),
@@ -575,13 +640,16 @@ def auth_reset_password(req: ResetPasswordRequest):
         if not row:
             raise HTTPException(400, "Invalid or expired reset link")
         pr_id, user_id = row
-        salt    = secrets.token_hex(16)
-        pw_hash = _hash_password(req.password, salt)
+        pw_hash = _hash_password_bcrypt(req.password)
         cur.execute("UPDATE password_resets SET used=true WHERE id=%s", (pr_id,))
         cur.execute(
-            "UPDATE users SET password_hash=%s,salt=%s WHERE id=%s", (pw_hash, salt, user_id)
+            "UPDATE users SET password_hash=%s,salt=NULL WHERE id=%s", (pw_hash, user_id)
         )
         cur.execute("DELETE FROM refresh_tokens WHERE user_id=%s", (user_id,))
+        # A password reset also disconnects every connected app (e.g. ChatGPT).
+        cur.execute(
+            "UPDATE oauth_grants SET revoked_at=now() WHERE user_id=%s AND revoked_at IS NULL", (user_id,)
+        )
     return {"ok": True}
 
 
@@ -589,8 +657,9 @@ def auth_reset_password(req: ResetPasswordRequest):
 def create_mcp_token(req: MCPTokenRequest, authorization: str = Header(default=None)):
     """Generate a long-lived MCP token. Requires a valid session JWT."""
     user_id  = require_auth(authorization)
+    days     = max(1, min(int(req.expires_days), settings.MCP_TOKEN_MAX_DAYS))
     raw      = "mcp-" + secrets.token_urlsafe(32)
-    exp      = datetime.now(timezone.utc) + timedelta(days=req.expires_days)
+    exp      = datetime.now(timezone.utc) + timedelta(days=days)
     token_id = str(uuid.uuid4())
     with _db() as conn:
         conn.cursor().execute(

@@ -38,7 +38,7 @@ class ConversationMessageItem(BaseModel):
 async def list_conversations(
     authorization: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "conversations:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -58,7 +58,7 @@ async def create_conversation(
     req: ConversationCreate,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "conversations:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -75,7 +75,7 @@ async def get_conversation(
     conv_id: str,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "conversations:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -116,7 +116,7 @@ async def delete_conversation(
     conv_id: str,
     authorization: str | None = Header(default=None),
 ) -> None:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "conversations:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM conversations WHERE id = %s", (conv_id,))
@@ -134,7 +134,7 @@ async def patch_conversation(
     req: ConversationPatch,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "conversations:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM conversations WHERE id = %s", (conv_id,))
@@ -163,7 +163,7 @@ async def append_messages(
     messages: list[ConversationMessageItem],
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "conversations:write")
     if not messages:
         raise HTTPException(status_code=400, detail="No messages provided")
     with get_db() as conn:

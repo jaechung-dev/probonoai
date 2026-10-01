@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Scale } from 'lucide-react'
 import { useAuth } from '@/context/auth'
+import { takeNext } from '@/lib/nextPath'
 
 export default function AuthCallbackPage() {
   const navigate = useNavigate()
@@ -16,7 +17,7 @@ export default function AuthCallbackPage() {
     }
     try {
       loginWithToken(token)
-      navigate('/chat', { replace: true })
+      navigate(takeNext() || '/chat', { replace: true })
     } catch {
       navigate('/login?error=invalid_link', { replace: true })
     }

@@ -57,5 +57,30 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = ""
 
+    # ── ChatGPT Custom GPT Action (OAuth 2.0 authorization-code + PKCE) ────────
+    GPT_OAUTH_CLIENT_ID: str = ""
+    GPT_OAUTH_CLIENT_SECRET: str = ""          # keep in Secrets Manager
+    # Comma-separated EXACT redirect URIs (copy from the GPT's Action settings).
+    GPT_OAUTH_REDIRECT_URIS: str = ""
+    GPT_REQUIRE_PKCE: bool = True
+    GPT_ACCESS_TOKEN_MINUTES: int = 15
+    GPT_REFRESH_TOKEN_DAYS: int = 30
+    # Comma-separated CIDRs of OpenAI's published egress ranges. Empty = GPT
+    # tokens are REFUSED (fail closed) while GPT_ENFORCE_IP is true.
+    GPT_ALLOWED_CIDRS: str = ""
+    GPT_ENFORCE_IP: bool = True
+    # Number of trusted proxies appended AFTER the real viewer IP in
+    # X-Forwarded-For (verify with a test request; wrong value fails closed).
+    TRUSTED_PROXY_HOPS: int = 0
+    GPT_RATE_PER_MINUTE: int = 30
+    GPT_RATE_PER_HOUR: int = 300
+
+    # ── Long-lived MCP tokens ──────────────────────────────────────────────────
+    MCP_TOKEN_DEFAULT_DAYS: int = 30
+    MCP_TOKEN_MAX_DAYS: int = 90
+
+    # Optional extra recipient for SECURITY_ALERT emails (besides the user).
+    SECURITY_ALERT_EMAIL: str = ""
+
 
 settings = Settings()

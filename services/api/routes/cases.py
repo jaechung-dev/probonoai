@@ -19,7 +19,7 @@ class FilesUpdate(BaseModel):
 async def get_user_case(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -37,7 +37,7 @@ async def get_user_case(
 async def list_user_cases(
     authorization: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -62,7 +62,7 @@ async def get_case_detail(
     case_id: str,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -88,7 +88,7 @@ async def delete_case(
     case_id: str,
     authorization: str | None = Header(default=None),
 ) -> None:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM case_intakes WHERE id = %s", (case_id,))
@@ -107,7 +107,7 @@ async def update_case_files(
     req: FilesUpdate,
     authorization: str | None = Header(default=None),
 ) -> dict[str, bool]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id, files FROM case_intakes WHERE id = %s", (case_id,))
@@ -138,7 +138,7 @@ def get_timeline(
     case_id: str,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM case_intakes WHERE id::text = %s", (case_id,))

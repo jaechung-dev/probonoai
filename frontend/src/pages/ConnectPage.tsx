@@ -5,6 +5,7 @@ import { Copy, Check, Plus, Trash2, Clock, Plug, X, Menu, Zap } from 'lucide-rea
 import { useAuth } from '@/context/auth'
 import { API_URL as API, MCP_URL } from '@/lib/config'
 import type { MCPToken } from '@/types/mcp'
+import ConnectedApps from '../components/ConnectedApps'
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'Never'
@@ -62,7 +63,7 @@ export default function ConnectPage() {
       const r = await fetch(`${API}/auth/mcp/token`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({ name: newName.trim() || 'My MCP Token', expires_days: 365 }),
+        body:    JSON.stringify({ name: newName.trim() || 'My MCP Token', expires_days: 30 }),
       })
       if (!r.ok) throw new Error((await r.json()).detail || 'Failed to create token')
       const data = await r.json()
@@ -203,6 +204,8 @@ export default function ConnectPage() {
               </p>
             </div>
 
+            <ConnectedApps />
+
             {/* What this does */}
             <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-zinc-800">
@@ -273,7 +276,7 @@ export default function ConnectPage() {
                 {error && (
                   <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">{error}</div>
                 )}
-                <p className="text-xs text-gray-400">Token expires in 1 year. You can revoke it at any time.</p>
+                <p className="text-xs text-gray-400">Token expires in 30 days. You can revoke it at any time.</p>
               </div>
             </div>
 
