@@ -109,7 +109,7 @@ def _hash_password(password: str, salt: str) -> str:
 
 def _bcrypt_input(password: str) -> bytes:
     # SHA-256 pre-hash (base64) removes bcrypt's 72-byte truncation / NUL issues.
-    return base64.b64encode(hashlib.sha256(password.encode()).digest())
+    return base64.b64encode(hashlib.sha256(password.encode()).digest())  # lgtm[py/weak-sensitive-data-hashing] # noqa: S324
 
 
 def _hash_password_bcrypt(password: str) -> str:
