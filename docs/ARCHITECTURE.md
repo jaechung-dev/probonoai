@@ -13,7 +13,7 @@ data and embeddings, and OpenAI/Anthropic for generation.
 - **Users → CloudFront → S3** serve the static React SPA (the landing page is
   pre-rendered to avoid a client-side-render flash).
 - The SPA calls **API Gateway (HTTP API)**, which fronts three Lambdas:
-  - **API Lambda** — authentication (custom JWT: bcrypt, Google OAuth, OTP,
+  - **API Lambda** — authentication (custom JWT: bcrypt, Google OAuth, OTP, OAuth 2.0 + PKCE provider for the ChatGPT Action,
     `sub`/`aud`/`iss` claims), case/document APIs, search, user management.
   - **AI / RAG Lambda** — RAG orchestration, retrieval, LLM integration.
   - **MCP Lambda** — MCP endpoints, tool execution, external integrations.
@@ -54,3 +54,42 @@ connect over the **MCP protocol (JSON-RPC over HTTPS)** to the **MCP Lambda**
 **AI / RAG Lambda** and **Supabase**. Authentication uses custom JWT bearer
 tokens. External integrations: Amazon SES (email) is implemented; SNS/SQS
 notifications and Slack/Teams webhooks are aspirational.
+
+## 5. Content Guardrails
+
+Every `/chat` request passes through two guardrail layers **before** any LLM
+call is made, ensuring zero token cost and zero liability for harmful responses.
+
+### Layer 1 — Crisis Detection (instant, no API call)
+
+A regex pattern matches crisis signals in the user message:
+
+- Suicide and self-harm intent (`suicide`, `kill myself`, `self-harm`, `want to die`, `overdose`, etc.)
+
+If triggered, the user receives an immediate response with Australian crisis
+resources — no LLM is invoked:
+
+| Service | Contact |
+|---------|---------|
+| Lifeline | 13 11 14 (24/7) |
+| Beyond Blue | 1300 22 4636 |
+| Crisis Text | 0477 13 11 14 |
+
+### Layer 2 — OpenAI Moderation API (free)
+
+Any message that passes the crisis regex is run through the
+[OpenAI Moderation API](https://platform.openai.com/docs/guides/moderation)
+(`POST /v1/moderations`). This endpoint is **free** and flags:
+
+- `self_harm`, `self_harm_intent`, `self_harm_instructions`
+- `harassment_threatening`
+- `violence`
+
+Flagged messages return the same crisis response. Moderation API errors are
+logged and silently bypassed to avoid blocking legitimate users.
+
+### Layer 3 — Off-topic Deflection
+
+Greetings and small talk (`hi`, `how are you`, `thanks`, etc.) are matched by
+a second regex and returned a polite redirect — no retrieval, no LLM call,
+no token cost.

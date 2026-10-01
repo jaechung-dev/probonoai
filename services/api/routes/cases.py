@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from services.core.db import get_db
 from services.api.deps import get_user_from_header, require_auth
+from services.auth.tokens import AUD_GPT, token_aud
 
 router = APIRouter()
 
@@ -19,7 +20,7 @@ class FilesUpdate(BaseModel):
 async def get_user_case(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -37,7 +38,7 @@ async def get_user_case(
 async def list_user_cases(
     authorization: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -62,7 +63,7 @@ async def get_case_detail(
     case_id: str,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -74,13 +75,19 @@ async def get_case_detail(
         raise HTTPException(status_code=404, detail="Case not found")
     if row[5] != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return {
+    out = {
         "id": str(row[0]),
         "personal": row[1],
         "matter": row[2],
         "files": row[3] or [],
         "created_at": row[4].isoformat(),
     }
+    if token_aud.get() == AUD_GPT:
+        # Data minimisation: third-party (GPT) callers never receive the user's
+        # personal/contact details, and only see file names, not storage keys.
+        out.pop("personal", None)
+        out["files"] = [{"name": f.get("name")} for f in out["files"] if isinstance(f, dict)]
+    return out
 
 
 @router.delete("/case/{case_id}", status_code=204)
@@ -88,7 +95,7 @@ async def delete_case(
     case_id: str,
     authorization: str | None = Header(default=None),
 ) -> None:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM case_intakes WHERE id = %s", (case_id,))
@@ -107,7 +114,7 @@ async def update_case_files(
     req: FilesUpdate,
     authorization: str | None = Header(default=None),
 ) -> dict[str, bool]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:write")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id, files FROM case_intakes WHERE id = %s", (case_id,))
@@ -138,7 +145,7 @@ def get_timeline(
     case_id: str,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    user_id = require_auth(authorization)
+    user_id = require_auth(authorization, "cases:read")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM case_intakes WHERE id::text = %s", (case_id,))

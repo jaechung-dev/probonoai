@@ -11,6 +11,7 @@ from mangum import Mangum
 from services.core.middleware import AccessLogMiddleware
 from services.core.settings import settings
 from services.auth.service import router as auth_router, seed_db
+from services.auth.oauth import router as oauth_router
 from services.api.routes.health import router as health_router
 from services.api.routes.intake import router as intake_router
 from services.api.routes.cases import router as cases_router
@@ -39,6 +40,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(oauth_router)
 app.include_router(health_router)
 app.include_router(intake_router)
 app.include_router(cases_router)

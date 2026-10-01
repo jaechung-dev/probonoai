@@ -14,6 +14,7 @@ const ChatPage          = lazy(() => import('./pages/ChatPage'))
 const SearchPage        = lazy(() => import('./pages/SearchPage'))
 const MyCasePage        = lazy(() => import('./pages/MyCasePage'))
 const ConnectPage       = lazy(() => import('./pages/ConnectPage'))
+const OAuthConsentPage  = lazy(() => import('./pages/OAuthConsentPage'))
 const IntakePage        = lazy(() => import('./pages/IntakePage'))
 const PrivacyPage       = lazy(() => import('./pages/PrivacyPage'))
 const TermsPage         = lazy(() => import('./pages/TermsPage'))
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="/search"            element={<SearchPage />} />
               <Route path="/my-case"           element={<MyCasePage />} />
               <Route path="/connect"           element={<ConnectPage />} />
+              <Route path="/oauth/consent"     element={<OAuthConsentPage />} />
               <Route path="/intake"            element={<IntakePage />} />
               <Route path="/privacy"            element={<PrivacyPage />} />
               <Route path="/terms"              element={<TermsPage />} />

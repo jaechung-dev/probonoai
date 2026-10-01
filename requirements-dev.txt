@@ -1,3 +1,4 @@
 # Test/dev-only dependencies — NOT bundled into the Lambda ZIPs.
 # App deps live in requirements.txt; these are just for running the test suite.
 pytest>=8.0
+bcrypt>=4.1.0
