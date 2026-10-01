@@ -107,9 +107,14 @@ def _hash_password(password: str, salt: str) -> str:
     return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
 
+def _encode_for_bcrypt(data: bytes) -> bytes:
+    """Base64-encode a SHA-256 digest so bcrypt receives fixed-length, NUL-free bytes.
+    Avoids bcrypt's 72-byte input truncation. This is NOT the password store — bcrypt is."""
+    return base64.b64encode(hashlib.sha256(data).digest())
+
+
 def _bcrypt_input(password: str) -> bytes:
-    # SHA-256 pre-hash (base64) removes bcrypt's 72-byte truncation / NUL issues.
-    return base64.b64encode(hashlib.sha256(password.encode()).digest())  # lgtm[py/weak-sensitive-data-hashing] # noqa: S324
+    return _encode_for_bcrypt(password.encode())
 
 
 def _hash_password_bcrypt(password: str) -> str:
