@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from services.core.db import get_db
 from services.api.deps import get_user_from_header, require_auth
+from services.auth.tokens import AUD_GPT, token_aud
 
 router = APIRouter()
 
@@ -74,13 +75,19 @@ async def get_case_detail(
         raise HTTPException(status_code=404, detail="Case not found")
     if row[5] != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return {
+    out = {
         "id": str(row[0]),
         "personal": row[1],
         "matter": row[2],
         "files": row[3] or [],
         "created_at": row[4].isoformat(),
     }
+    if token_aud.get() == AUD_GPT:
+        # Data minimisation: third-party (GPT) callers never receive the user's
+        # personal/contact details, and only see file names, not storage keys.
+        out.pop("personal", None)
+        out["files"] = [{"name": f.get("name")} for f in out["files"] if isinstance(f, dict)]
+    return out
 
 
 @router.delete("/case/{case_id}", status_code=204)

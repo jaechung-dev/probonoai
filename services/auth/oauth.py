@@ -37,7 +37,7 @@ router = APIRouter(prefix="/oauth", tags=["oauth"])
 
 CODE_TTL_SECONDS = 60
 REUSE_GRACE_SECONDS = 10          # tolerate a retried/racing refresh call
-DEFAULT_SCOPES = ["cases:read", "conversations:read", "search", "ask"]
+DEFAULT_SCOPES = ["cases:read", "conversations:read"]  # search/ask live on other Lambdas that do not accept GPT tokens
 
 
 def _h(s: str) -> str:

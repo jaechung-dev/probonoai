@@ -41,6 +41,9 @@ GPT_ALLOWED_SCOPES = ["cases:read", "conversations:read", "search", "ask", "time
 # Per-request context set by the access-log middleware so that sync auth
 # helpers can see the caller IP without every route taking a Request.
 request_ip: contextvars.ContextVar[str] = contextvars.ContextVar("request_ip", default="")
+# Audience of the token that authenticated the current request, so handlers can
+# minimise what they return to third-party (GPT) callers.
+token_aud: contextvars.ContextVar[str] = contextvars.ContextVar("token_aud", default="")
 
 
 # ── Client IP ─────────────────────────────────────────────────────────────────
@@ -230,6 +233,7 @@ def authenticate(authorization: str | None, scope: str | None = None) -> dict:
         raise HTTPException(401, "Invalid token")
 
     scopes = claims.get("scopes")
+    token_aud.set(claims.get("aud", ""))
     if claims.get("aud") == AUD_GPT:
         if not scope or scope not in GPT_ALLOWED_SCOPES or scope not in (scopes or []):
             security_alert("gpt_scope_denied", claims["sub"], detail={"wanted": scope})

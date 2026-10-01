@@ -148,6 +148,35 @@ class TestScopeEnforcement(unittest.TestCase):
         self.assertEqual(get_user_from_header(_web()), "u1")
 
 
+class TestDataMinimisation(unittest.TestCase):
+    def _detail(self, aud):
+        import asyncio as _a
+        from services.api.routes import cases
+        row = ("c1", {"name": "Jae", "address": "1 Street"}, {"type": "housing"},
+               [{"name": "lease.pdf", "key": "s3://secret/key"}], datetime.now(timezone.utc), "u1")
+        cur = FakeCursor([row])
+        t = tokens.token_aud.set(aud)
+        try:
+            with patch.object(cases, "get_db", _db(cur)), patch.object(cases, "require_auth", return_value="u1"):
+                return _a.run(cases.get_case_detail("c1", "Bearer x"))
+        finally:
+            tokens.token_aud.reset(t)
+
+    def test_gpt_does_not_receive_personal_details_or_storage_keys(self):
+        out = self._detail(tokens.AUD_GPT)
+        self.assertNotIn("personal", out)
+        self.assertEqual(out["files"], [{"name": "lease.pdf"}])
+
+    def test_web_still_receives_full_case(self):
+        out = self._detail(tokens.AUD_WEB)
+        self.assertIn("personal", out)
+        self.assertIn("key", out["files"][0])
+
+    def test_authenticate_records_audience(self):
+        tokens.authenticate(_web(), "cases:read")
+        self.assertEqual(tokens.token_aud.get(), tokens.AUD_WEB)
+
+
 class TestClientIp(unittest.TestCase):
     def test_rightmost_by_default(self):
         with _Settings(TRUSTED_PROXY_HOPS=0):

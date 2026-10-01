@@ -1,0 +1,117 @@
+openapi: 3.1.0
+info:
+  title: ProBono AI — read-only case access
+  description: >
+    Lets the signed-in user's ChatGPT read their own ProBono AI cases and saved
+    conversations. Read-only. All data belongs to the user who connected the GPT.
+  version: "1.0"
+servers:
+  - url: https://api.probonoai.com.au
+paths:
+  /user/cases:
+    get:
+      operationId: listMyCases
+      summary: List the user's cases (id, matter, file count, created date).
+      responses:
+        "200":
+          description: Cases, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    matter: { type: object, additionalProperties: true }
+                    file_count: { type: integer }
+                    created_at: { type: string }
+  /case/{case_id}:
+    get:
+      operationId: getCase
+      summary: Get one case (matter details and file names). Contact details are never returned.
+      parameters:
+        - { name: case_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The case.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  matter: { type: object, additionalProperties: true }
+                  files:
+                    type: array
+                    items: { type: object, properties: { name: { type: string } } }
+                  created_at: { type: string }
+  /case/{case_id}/timeline:
+    get:
+      operationId: getCaseTimeline
+      summary: Get the dated events (emails, notices, letters) for a case.
+      parameters:
+        - { name: case_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Timeline events in date order.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  case_id: { type: string }
+                  total: { type: integer }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string }
+                        category: { type: string }
+                        event_type: { type: string }
+                        subject: { type: string }
+                        summary: { type: string }
+                        content: { type: string }
+  /conversations:
+    get:
+      operationId: listMyConversations
+      summary: List the user's 50 most recent saved conversations.
+      responses:
+        "200":
+          description: Conversations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    title: { type: string }
+                    updated_at: { type: string }
+                    case_id: { type: string, nullable: true }
+  /conversations/{conv_id}:
+    get:
+      operationId: getConversation
+      summary: Get one saved conversation with its messages.
+      parameters:
+        - { name: conv_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The conversation.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  title: { type: string }
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        role: { type: string }
+                        content: { type: string }
+                        created_at: { type: string }
