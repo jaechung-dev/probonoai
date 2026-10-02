@@ -155,14 +155,22 @@ class CaseChunkRetriever(BaseRetriever):
 
 
 class CaseEventRetriever(BaseRetriever):
-    """Semantic search over case timeline events for a specific case."""
+    """Semantic search over case timeline events for a specific case.
+
+    Scoped by ``user_id`` as well as ``case_id`` (same rule as CaseChunkRetriever):
+    a case_id belonging to another user returns nothing.
+    """
 
     k: int = Field(default=5)
     case_id: str = Field(default="")
+    user_id: str = Field(default="")
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
+        # Owner scoping is mandatory: never query case events without a user_id.
+        if not self.user_id:
+            return []
         # case_id is a UUID column — reject non-UUID strings before hitting the DB.
         try:
             _uuid.UUID(self.case_id)
@@ -177,10 +185,10 @@ class CaseEventRetriever(BaseRetriever):
                 SELECT date, category, event_type, subject, content,
                        1 - (embedding <=> %s::vector) AS score
                 FROM case_events
-                WHERE case_id = %s AND embedding IS NOT NULL
+                WHERE case_id = %s AND user_id = %s AND embedding IS NOT NULL
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s
-            """, (vec_str, self.case_id, vec_str, self.k))
+            """, (vec_str, self.case_id, self.user_id, vec_str, self.k))
             rows = cur.fetchall()
         finally:
             conn.close()

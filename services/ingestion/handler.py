@@ -12,6 +12,7 @@ Parsing strategy:
   images (.jpg .jpeg .png .tiff) → Amazon Textract DetectDocumentText
 """
 import email
+import hashlib
 import io
 import json
 import logging
@@ -47,6 +48,8 @@ EMBED_MODEL        = "text-embedding-3-small"
 CHUNK_TOKENS       = 500
 OVERLAP_TOKENS     = 50
 MIN_PDF_CHARS_PAGE = 50   # native text below this → OCR the page
+
+INGEST_V2 = os.environ.get("INGEST_V2", "0") == "1"   # new case model (migrations/001_case_model_v2.sql)
 
 SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".text", ".eml", ".jpg", ".jpeg", ".png", ".tiff"}
 MAX_BYTES = 25 * 1024 * 1024  # 25 MB
@@ -89,6 +92,10 @@ def process_file(bucket: str, key: str) -> None:
         logger.warning("skipping oversized file size=%d key=%s", len(data), key)
         return
 
+    if INGEST_V2:
+        _process_file_v2(bucket, key, ext, data, meta)
+        return
+
     if ext == ".pdf":
         text = _parse_pdf(data, bucket, key)
     elif ext == ".docx":
@@ -125,6 +132,74 @@ def process_file(bucket: str, key: str) -> None:
         events = _extract_timeline_events(text, filename)
         if events:
             _store_timeline_events(user_id, case_id, key, events)
+
+
+# ── v2 path (INGEST_V2=1) ──────────────────────────────────────────────────────
+
+
+def _parse_pdf_pages(data: bytes, bucket: str, key: str) -> list[str]:
+    """Full text per page, in page order (sparse pages OCR'd). Same rules as _parse_pdf."""
+    doc = fitz.open(stream=data, filetype="pdf")
+    pages = []
+    for i, page in enumerate(doc):
+        native = page.get_text()
+        if len(native.strip()) >= MIN_PDF_CHARS_PAGE:
+            pages.append(native)
+        else:
+            pages.append(_ocr_pdf_pages(doc, [i]))
+    return pages
+
+
+def _llm_json(system: str, user: str) -> dict:
+    try:
+        resp = oai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        logger.exception("v2 LLM call failed")  # no document content in logs
+        return {}
+
+
+def _process_file_v2(bucket: str, key: str, ext: str, data: bytes, meta: dict) -> None:
+    from services.ingestion import v2
+
+    if ext == ".pdf":
+        pages = _parse_pdf_pages(data, bucket, key)
+    elif ext == ".docx":
+        pages = [_parse_docx(data)]
+    elif ext in (".txt", ".text"):
+        pages = [data.decode("utf-8", errors="replace")]
+    elif ext == ".eml":
+        pages = [_parse_eml(data)]
+    else:
+        pages = [_ocr_image(bucket, key)]
+    pages = [p.strip() for p in pages]
+    if not any(pages):
+        logger.warning("no text extracted key=%s", key)
+        return
+
+    parts = key.split("/")
+    user_id = parts[1] if len(parts) >= 3 else "anon"
+    case_id = meta.get("case-id") or _get_latest_intake_id(user_id)  # cases.id == case_intakes.id
+    if not case_id or user_id == "anon":
+        raise ValueError("v2 ingest needs a user and case (failing closed)")
+
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        result = v2.ingest_document(
+            conn, user_id=user_id, case_id=case_id, filename=Path(key).name, s3_key=key,
+            content_sha256=hashlib.sha256(data).hexdigest(), pages=pages, upload_meta=meta,
+            llm_json=_llm_json, embed=_embed, encode=enc.encode, decode=enc.decode,
+        )
+    finally:
+        conn.close()
+    logger.info("v2 result status=%s", result.get("status"))
+    _mark_file_ready(user_id, case_id, key)
 
 
 # ── Parsing ────────────────────────────────────────────────────────────────────

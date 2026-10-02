@@ -153,7 +153,7 @@ class TestCaseEventRetriever(unittest.TestCase):
             patch("psycopg2.connect", return_value=_make_mock_conn(self._rows())),
         ):
             from services.rag.retrievers import CaseEventRetriever
-            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001")
+            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001", user_id="00000000-0000-0000-0000-0000000000aa")
             docs = r.invoke("bail hearing")
         self.assertIsInstance(docs, list)
         self.assertEqual(len(docs), 1)
@@ -164,11 +164,19 @@ class TestCaseEventRetriever(unittest.TestCase):
             patch("psycopg2.connect", return_value=_make_mock_conn(self._rows())),
         ):
             from services.rag.retrievers import CaseEventRetriever
-            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001")
+            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001", user_id="00000000-0000-0000-0000-0000000000aa")
             docs = r.invoke("bail hearing")
         self.assertIn("Hearing", docs[0].page_content)
         self.assertEqual(docs[0].metadata["source"], "case_event")
         self.assertIn("date", docs[0].metadata)
+
+    def test_requires_user_id(self):
+        # Without a user_id the retriever must return nothing and never hit the DB.
+        with patch("psycopg2.connect") as conn:
+            from services.rag.retrievers import CaseEventRetriever
+            r = CaseEventRetriever(k=1, case_id="00000000-0000-0000-0000-000000000001")
+            self.assertEqual(r.invoke("anything"), [])
+            conn.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -202,7 +202,7 @@ async def search(
         cid = req.case_id or ""
         if cid:
             _require_case_owner(cid, user)
-        retriever = CaseEventRetriever(k=req.k, case_id=cid)
+        retriever = CaseEventRetriever(k=req.k, case_id=cid, user_id=user)
     else:
         retriever = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction)
 
@@ -242,7 +242,7 @@ async def ask(
         cid = req.case_id or ""
         if cid:
             _require_case_owner(cid, user)
-        all_docs = CaseEventRetriever(k=req.k, case_id=cid).invoke(req.question)
+        all_docs = CaseEventRetriever(k=req.k, case_id=cid, user_id=user).invoke(req.question)
     else:
         all_docs = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction).invoke(req.question)
 
