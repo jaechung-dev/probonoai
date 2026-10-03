@@ -66,20 +66,84 @@ class ExportFiles:
         d = self.root / "attachments"
         return sorted(f.name for f in d.rglob("*") if f.is_file()) if d.is_dir() else []
 
-    def read_pdf_pages(self, name):
-        """Native text per page (same rule as handler._parse_pdf_pages, minus OCR). None if unavailable."""
+    def _find_attachment(self, name) -> "Path | None":
+        """Locate an attachment file by name anywhere under attachments/."""
         d = self.root / "attachments"
         if not d.is_dir():
             return None
         matches = [f for f in d.rglob(name) if f.is_file()]
-        if not matches:
-            return None
+        return matches[0] if matches else None
+
+    def read_attachment_pages(self, name) -> "tuple[list[str], bool]":
+        """Extract text from any attachment type.
+        Returns (pages, numbered): numbered=True for PDF (per-page), False for single pseudo-page.
+        Returns ([], False) if nothing extractable or on any error."""
+        p = self._find_attachment(name)
+        if not p:
+            return [], False
+        ext = p.suffix.lower()
         try:
-            import fitz  # PyMuPDF
-            with fitz.open(matches[0]) as doc:
-                return [page.get_text() for page in doc]
+            if ext == ".pdf":
+                return self._read_pdf_pages(p), True
+            elif ext in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp"):
+                text = self._ocr_image(p)
+                return ([text] if text else []), False
+            elif ext == ".docx":
+                text = self._extract_docx(p)
+                return ([text] if text else []), False
+            elif ext == ".eml":
+                text = self._extract_eml(p)
+                return ([text] if text else []), False
+            else:
+                return [], False
         except Exception:
-            return None
+            return [], False
+
+    def _read_pdf_pages(self, p) -> "list[str]":
+        """Per-page text with OCR fallback for image-only pages (fitz + Tesseract)."""
+        import fitz
+        pages = []
+        with fitz.open(p) as doc:
+            for page in doc:
+                text = page.get_text().strip()
+                if len(text) < MIN_PDF_CHARS_PAGE:
+                    try:
+                        tp = page.get_textpage_ocr(full=True)
+                        text = page.get_text(textpage=tp).strip()
+                    except Exception:
+                        pass
+                pages.append(text)
+        return pages
+
+    def _ocr_image(self, p) -> "str | None":
+        """OCR a raster image (PNG/JPEG/GIF/etc.) using fitz + Tesseract."""
+        import fitz
+        with fitz.open(p) as doc:
+            if not doc:
+                return None
+            tp = doc[0].get_textpage_ocr(full=True)
+            return doc[0].get_text(textpage=tp).strip() or None
+
+    def _extract_docx(self, p) -> "str | None":
+        """Extract text from a DOCX file using python-docx."""
+        import docx
+        d = docx.Document(str(p))
+        text = "\n\n".join(para.text for para in d.paragraphs if para.text.strip())
+        return text or None
+
+    def _extract_eml(self, p) -> "str | None":
+        """Extract text from an embedded EML using stdlib email."""
+        import email as _email
+        data = p.read_bytes()
+        msg = _email.message_from_bytes(data)
+        headers = "\n".join(f"{h}: {msg[h]}" for h in ("From", "To", "Cc", "Date", "Subject") if msg[h])
+        body_parts = []
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain" and not part.get_filename():
+                charset = part.get_content_charset() or "utf-8"
+                body_parts.append(part.get_payload(decode=True).decode(charset, errors="replace"))
+        text = f"{headers}\n\n{''.join(body_parts)}".strip()
+        return text or None
 
     def attachment_text_files(self, msg):
         """{nn: relative path of extracted .md} from extracted_text/<ts>_<msgid>/NN_*.md."""
@@ -158,7 +222,7 @@ def main(argv=None) -> int:
                 r = gi.import_message(
                     conn, msg=m, user_id=a.user_id, case_id=a.case_id, category=category,
                     owner_emails=a.owner_email, owner_names=a.owner_name, keep_quotes=a.keep_quotes,
-                    read_text=files.read_text, read_pdf_pages=files.read_pdf_pages,
+                    read_text=files.read_text, read_attachment_pages=files.read_attachment_pages,
                     list_attachment_files=files.list_attachment_files,
                     attachment_text_files=files.attachment_text_files,
                     llm_json=llm_json, embed=embed, encode=encode, decode=decode)

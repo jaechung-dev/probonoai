@@ -186,7 +186,7 @@ class TestImportMessage(unittest.TestCase):
             return [[0.0] for _ in ts]
         args = dict(msg=self.MSG, user_id="u1", case_id="c1", category="Cat", owner_emails=["me@x.org"],
                     owner_names=[], keep_quotes=False, read_text=texts.get,
-                    read_pdf_pages=lambda n: pdf.get(n) if n != "3_m1_03_c.pdf" else ["", ""],
+                    read_attachment_pages=lambda n: (pdf.get(n), True) if n and n.lower().endswith(".pdf") else (None, False),
                     list_attachment_files=lambda: ["1_m1_01_a.pdf", "2_m1_02_b.docx", "3_m1_03_c.pdf"],
                     attachment_text_files=lambda m: {1: "extracted_text/ts_m1/01_a.md",
                                                      2: "extracted_text/ts_m1/02_b.md", 3: "extracted_text/ts_m1/03_c.md"},
@@ -395,16 +395,24 @@ class TestExportFilesSubdirStructure(unittest.TestCase):
             self.assertTrue(atf[1].endswith("01_photo_ocr.md"))
             self.assertTrue(atf[2].endswith("02_report.md"))
 
-    def test_read_pdf_pages_finds_file_in_subdir(self):
+    def test_read_attachment_pages_finds_file_in_subdir(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = self._make_export(tmp)
             ef = self.ExportFiles(root)
-            # Should find the file even though it's nested; returns None (not real PDF bytes)
-            result = ef.read_pdf_pages("20260101T000000Z_msg1_1_report.pdf")
-            # File exists but bytes are b"PDF" (not real PDF) → fitz raises → returns None
-            self.assertIsNone(result)
-            # Non-existent file also returns None
-            self.assertIsNone(ef.read_pdf_pages("nope.pdf"))
+            # File exists but bytes are b"PDF" (not a real PDF) → fitz raises → ([], False)
+            result = ef.read_attachment_pages("20260101T000000Z_msg1_1_report.pdf")
+            self.assertEqual(result, ([], False))
+            # Non-existent file also returns ([], False)
+            self.assertEqual(ef.read_attachment_pages("nope.pdf"), ([], False))
+
+    def test_read_attachment_pages_image_graceful(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_export(tmp)
+            ef = self.ExportFiles(root)
+            # b"PNG" is not a valid PNG; fitz raises → ([], False), no crash
+            pages, numbered = ef.read_attachment_pages("20260101T000000Z_msg1_0_photo.png")
+            self.assertIsInstance(pages, list)
+            self.assertFalse(numbered)
 
 
 class TestScriptDryRun(unittest.TestCase):

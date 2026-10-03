@@ -313,7 +313,7 @@ def choose_pages(native_pages: Optional[list[str]], fallback_md: Optional[str]) 
 def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str,
                    owner_emails, owner_names, keep_quotes: bool,
                    read_text: Callable[[str], Optional[str]],
-                   read_pdf_pages: Callable[[str], Optional[list[str]]],
+                   read_attachment_pages: Callable[[str], "tuple[list[str], bool]"],
                    list_attachment_files: Callable[[], list[str]],
                    attachment_text_files: Callable[[dict], dict],
                    llm_json, embed, encode, decode) -> dict:
@@ -376,11 +376,34 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
     for idx, entry in enumerate(msg["attachments"], start=1):
         ext_id = f"{msg['message_id']}#{idx:02d}"
         orig = find_attachment_file(files, entry, msg["message_id"], idx - 1)
-        native = read_pdf_pages(orig) if orig and orig.lower().endswith(".pdf") else None
-        md = attachment_text_files(msg).get(idx)
-        pages, numbered = choose_pages(native, read_text(md) if md else None)
-        # Always create a document row so attachment appears in email's attachment list.
-        # pages=[] produces a stub (page_count=0, no chunks) for image-only / unextracted files.
+        att_pages, att_numbered = read_attachment_pages(orig) if orig else ([], False)
+        md_path = attachment_text_files(msg).get(idx)
+        md_text = read_text(md_path) if md_path else None
+
+        if att_numbered:
+            # PDF: choose_pages applies native-text threshold and md fallback
+            pages, numbered = choose_pages(att_pages or None, md_text)
+        else:
+            # Image / DOCX / EML: single pseudo-page; prefer extracted text, fall back to md
+            text = next((t for t in [att_pages[0] if att_pages else None, md_text]
+                         if t and t.strip()), None)
+            pages, numbered = ([text.strip()], False) if text else ([], False)
+
+        # Idempotent re-import: skip if real content already exists; delete stub if we now have content.
+        cur.execute(
+            "SELECT id, page_count FROM documents WHERE case_id=%s AND user_id=%s AND external_id=%s",
+            (case_id, user_id, ext_id))
+        existing_att = cur.fetchone()
+        if existing_att:
+            if existing_att[1] > 0 or not pages:
+                # already has content, or we still have nothing new — either way, skip
+                n_att += 1
+                continue
+            # stub exists (page_count=0) but OCR/extraction now yields content: replace it
+            cur.execute("DELETE FROM documents WHERE id=%s AND user_id=%s",
+                        (str(existing_att[0]), user_id))
+
+        # Always create a document row: pages=[] produces a stub (page_count=0, no chunks).
         v2.ingest_document(
             conn, filename=entry or ext_id, s3_key=None, external_id=ext_id,
             content_sha256=content_hash(ext_id, "\n".join(pages)), pages=pages, numbered_pages=numbered,
