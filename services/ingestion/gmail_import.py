@@ -379,8 +379,8 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
         native = read_pdf_pages(orig) if orig and orig.lower().endswith(".pdf") else None
         md = attachment_text_files(msg).get(idx)
         pages, numbered = choose_pages(native, read_text(md) if md else None)
-        if not pages:
-            continue
+        # Always create a document row so attachment appears in email's attachment list.
+        # pages=[] produces a stub (page_count=0, no chunks) for image-only / unextracted files.
         v2.ingest_document(
             conn, filename=entry or ext_id, s3_key=None, external_id=ext_id,
             content_sha256=content_hash(ext_id, "\n".join(pages)), pages=pages, numbered_pages=numbered,

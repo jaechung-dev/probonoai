@@ -281,6 +281,22 @@ class TestImportMessage(unittest.TestCase):
         self.assertEqual(len(links), 3)
         self.assertTrue(all(p[1] == "existing-id" for p in links))
 
+    def test_no_text_attachment_creates_stub_document(self):
+        # Attachment with no extractable text → stub doc row (page_count=0), linked to email
+        conn = self.conn()
+        no_text_msg = dict(self.MSG, attachments=["photo.png"])
+        res, _, _ = self.run_msg(conn, msg=no_text_msg,
+                                  list_attachment_files=lambda: [],
+                                  attachment_text_files=lambda m: {})
+        self.assertEqual(res["status"], "imported")
+        self.assertEqual(res["attachments"], 1)
+        docs = [p for s, p in conn.log if s.startswith("INSERT INTO documents")]
+        self.assertEqual(len(docs), 2)           # email + stub attachment
+        stub_page_count = docs[1][5]             # INSERT params: [case,user,s3,filename,sha256,page_count,...]
+        self.assertEqual(stub_page_count, 0)
+        links = [p for s, p in conn.log if s.startswith("INSERT INTO document_links")]
+        self.assertEqual(len(links), 1)          # attachment_of link exists
+
     def test_ownership_fail_closed(self):
         conn = FakeConn([(r"FROM cases WHERE id", [])])
         with self.assertRaises(v2.OwnershipError):
