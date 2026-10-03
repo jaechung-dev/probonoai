@@ -316,6 +316,7 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
                    read_attachment_pages: Callable[[str], "tuple[list[str], bool]"],
                    list_attachment_files: Callable[[], list[str]],
                    attachment_text_files: Callable[[dict], dict],
+                   force_reocr: "frozenset | set" = frozenset(),
                    llm_json, embed, encode, decode) -> dict:
     """
     Import one email and its attachments. The caller owns the transaction: commit after success,
@@ -389,19 +390,30 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
                          if t and t.strip()), None)
             pages, numbered = ([text.strip()], False) if text else ([], False)
 
-        # Idempotent re-import: skip if real content already exists; delete stub if we now have content.
+        # Idempotent re-import: check existing doc; replace only when upgrading empty → content.
+        # Force-reocr bypasses the has-text guard for the listed external_ids.
         cur.execute(
-            "SELECT id, page_count FROM documents WHERE case_id=%s AND user_id=%s AND external_id=%s",
+            """SELECT d.id, d.page_count,
+               (SELECT count(*) FROM document_pages p
+                WHERE p.document_id=d.id AND p.duplicate_of_page_id IS NULL
+                AND coalesce(p.char_count,0)>0)
+               FROM documents d WHERE d.case_id=%s AND d.user_id=%s AND d.external_id=%s""",
             (case_id, user_id, ext_id))
         existing_att = cur.fetchone()
         if existing_att:
-            if existing_att[1] > 0 or not pages:
-                # already has content, or we still have nothing new — either way, skip
+            att_id = str(existing_att[0])
+            has_text = existing_att[2] > 0  # ≥1 non-dup page with char_count>0
+            forced = ext_id in force_reocr
+            if forced and pages:
+                # Force re-OCR: replace regardless of current content
+                cur.execute("DELETE FROM documents WHERE id=%s AND user_id=%s", (att_id, user_id))
+            elif has_text or not pages:
+                # Has real text already, or still nothing new — skip
                 n_att += 1
                 continue
-            # stub exists (page_count=0) but OCR/extraction now yields content: replace it
-            cur.execute("DELETE FROM documents WHERE id=%s AND user_id=%s",
-                        (str(existing_att[0]), user_id))
+            else:
+                # All pages have zero chars and we now have OCR content: replace
+                cur.execute("DELETE FROM documents WHERE id=%s AND user_id=%s", (att_id, user_id))
 
         # Always create a document row: pages=[] produces a stub (page_count=0, no chunks).
         v2.ingest_document(

@@ -297,6 +297,47 @@ class TestImportMessage(unittest.TestCase):
         links = [p for s, p in conn.log if s.startswith("INSERT INTO document_links")]
         self.assertEqual(len(links), 1)          # attachment_of link exists
 
+    def test_zero_char_existing_doc_replaced_when_ocr_yields_content(self):
+        # Existing doc with page_count>0 but all pages have char_count=0 (image-only scan):
+        # should be deleted and re-ingested when OCR now produces text.
+        # Simulate: existing_att = (id="scan-1", page_count=3, has_text_pages=0)
+        conn = FakeConn([OWNED, (r"^SELECT id FROM documents", []),
+                         (r"^SELECT id, name, aliases FROM institutions", []),
+                         (r"^SELECT name, role_title FROM parties", []),
+                         (r"^INSERT INTO documents", docs_responder()),
+                         (r"^SELECT thread_id FROM documents", [("th-1",)]),
+                         (r"^SELECT d\.id, d\.page_count", [("scan-1", 3, 0)])])
+        one_att_msg = dict(self.MSG, attachments=["scan.pdf"])
+        res, _, _ = self.run_msg(
+            conn, msg=one_att_msg,
+            list_attachment_files=lambda: ["1_m1_01_scan.pdf"],
+            attachment_text_files=lambda m: {},
+            read_attachment_pages=lambda n: (["ocr text " * 20], True))
+        deletes = [p for s, p in conn.log if s.startswith("DELETE FROM documents")]
+        self.assertEqual(len(deletes), 1)
+        self.assertEqual(str(deletes[0][0]), "scan-1")
+        inserted = [p for s, p in conn.log if s.startswith("INSERT INTO documents")]
+        self.assertEqual(len(inserted), 2)  # email + re-ingested attachment
+
+    def test_force_reocr_replaces_doc_with_text(self):
+        # --force-reocr should replace even a doc that already has char_count>0 pages
+        conn = FakeConn([OWNED, (r"^SELECT id FROM documents", []),
+                         (r"^SELECT id, name, aliases FROM institutions", []),
+                         (r"^SELECT name, role_title FROM parties", []),
+                         (r"^INSERT INTO documents", docs_responder()),
+                         (r"^SELECT thread_id FROM documents", [("th-1",)]),
+                         (r"^SELECT d\.id, d\.page_count", [("existing-1", 2, 5)])])
+        one_att_msg = dict(self.MSG, attachments=["doc.pdf"])
+        res, _, _ = self.run_msg(
+            conn, msg=one_att_msg,
+            list_attachment_files=lambda: ["1_m1_01_doc.pdf"],
+            attachment_text_files=lambda m: {},
+            read_attachment_pages=lambda n: (["new ocr text " * 20], True),
+            force_reocr={"m1#01"})
+        deletes = [p for s, p in conn.log if s.startswith("DELETE FROM documents")]
+        self.assertEqual(len(deletes), 1)
+        self.assertEqual(str(deletes[0][0]), "existing-1")
+
     def test_ownership_fail_closed(self):
         conn = FakeConn([(r"FROM cases WHERE id", [])])
         with self.assertRaises(v2.OwnershipError):

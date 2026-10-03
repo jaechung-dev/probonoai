@@ -35,8 +35,12 @@ def parse_args(argv=None):
     ap.add_argument("--keep-quotes", action="store_true", help="do not strip quoted reply history")
     ap.add_argument("--dry-run", action="store_true", help="default; accepted for clarity")
     ap.add_argument("--apply", action="store_true", help="write to the database")
+    ap.add_argument("--force-reocr", default=None,
+                    help="comma-separated external_ids to force re-extraction/re-import "
+                         "regardless of existing content (e.g. msgid#04,msgid#03)")
     a = ap.parse_args(argv)
     a.apply = bool(a.apply and not a.dry_run)
+    a.force_reocr = set(a.force_reocr.split(",")) if a.force_reocr else set()
     return a
 
 
@@ -77,30 +81,42 @@ class ExportFiles:
     def read_attachment_pages(self, name) -> "tuple[list[str], bool]":
         """Extract text from any attachment type.
         Returns (pages, numbered): numbered=True for PDF (per-page), False for single pseudo-page.
-        Returns ([], False) if nothing extractable or on any error."""
+        Returns ([], False) if nothing extractable or on any error; logs reason to stderr."""
         p = self._find_attachment(name)
         if not p:
+            print(f"  [WARN] attachment not found in fs: {name}", file=sys.stderr)
             return [], False
         ext = p.suffix.lower()
         try:
             if ext == ".pdf":
-                return self._read_pdf_pages(p), True
+                pages = self._read_pdf_pages(p)
+                if not any(t for t in pages):
+                    print(f"  [WARN] OCR empty ({len(pages)}p): {p.name}", file=sys.stderr)
+                return pages, True
             elif ext in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif", ".webp"):
                 text = self._ocr_image(p)
+                if not text:
+                    print(f"  [WARN] OCR empty: {p.name}", file=sys.stderr)
                 return ([text] if text else []), False
             elif ext == ".docx":
                 text = self._extract_docx(p)
+                if not text:
+                    print(f"  [WARN] DOCX empty: {p.name}", file=sys.stderr)
                 return ([text] if text else []), False
             elif ext == ".eml":
                 text = self._extract_eml(p)
+                if not text:
+                    print(f"  [WARN] EML empty: {p.name}", file=sys.stderr)
                 return ([text] if text else []), False
             else:
+                print(f"  [WARN] unsupported extension {ext!r}: {p.name}", file=sys.stderr)
                 return [], False
-        except Exception:
+        except Exception as exc:
+            print(f"  [WARN] extraction error {p.name}: {type(exc).__name__}: {exc}", file=sys.stderr)
             return [], False
 
     def _read_pdf_pages(self, p) -> "list[str]":
-        """Per-page text with OCR fallback for image-only pages (fitz + Tesseract)."""
+        """Per-page text with OCR fallback for image-only pages (fitz + Tesseract at 300 DPI)."""
         import fitz
         pages = []
         with fitz.open(p) as doc:
@@ -108,7 +124,7 @@ class ExportFiles:
                 text = page.get_text().strip()
                 if len(text) < MIN_PDF_CHARS_PAGE:
                     try:
-                        tp = page.get_textpage_ocr(full=True)
+                        tp = page.get_textpage_ocr(dpi=300, full=True)
                         text = page.get_text(textpage=tp).strip()
                     except Exception:
                         pass
@@ -116,12 +132,12 @@ class ExportFiles:
         return pages
 
     def _ocr_image(self, p) -> "str | None":
-        """OCR a raster image (PNG/JPEG/GIF/etc.) using fitz + Tesseract."""
+        """OCR a raster image (PNG/JPEG/GIF/etc.) using fitz + Tesseract at 300 DPI."""
         import fitz
         with fitz.open(p) as doc:
             if not doc:
                 return None
-            tp = doc[0].get_textpage_ocr(full=True)
+            tp = doc[0].get_textpage_ocr(dpi=300, full=True)
             return doc[0].get_text(textpage=tp).strip() or None
 
     def _extract_docx(self, p) -> "str | None":
@@ -204,6 +220,32 @@ def main(argv=None) -> int:
     counts = gi.plan_counts(msgs, base, a.owner_email, a.owner_name)
     mode = "APPLY" if a.apply else "DRY RUN"
     print(f"[{mode}] " + " ".join(f"{k}={v}" for k, v in counts.items()))
+
+    if a.force_reocr and not a.apply:
+        # Preview: extract files for force-reocr targets and print per-page char counts
+        files = ExportFiles(root)
+        found = set()
+        for m in msgs:
+            for idx, entry in enumerate(m.get("attachments", []), start=1):
+                ext_id = f"{m['message_id']}#{idx:02d}"
+                if ext_id not in a.force_reocr:
+                    continue
+                found.add(ext_id)
+                orig = gi.find_attachment_file(files.list_attachment_files(), entry, m["message_id"], idx - 1)
+                if not orig:
+                    print(f"[PREVIEW] {ext_id}: FILE NOT FOUND in fs (manifest entry={entry!r})")
+                    continue
+                pages, numbered = files.read_attachment_pages(orig)
+                total = sum(len(t) for t in pages)
+                print(f"[PREVIEW] {ext_id}: {orig}  ({len(pages)} pages, {total} chars total)")
+                for i, text in enumerate(pages, 1):
+                    print(f"  page {i}: {len(text)} chars")
+                if not pages:
+                    print(f"  → no text extracted")
+        for missing in a.force_reocr - found:
+            print(f"[PREVIEW] {missing}: not found in manifest")
+        return 0
+
     if not a.apply:
         print("Nothing written. Re-run with --apply to import.")
         return 0
@@ -225,6 +267,7 @@ def main(argv=None) -> int:
                     read_text=files.read_text, read_attachment_pages=files.read_attachment_pages,
                     list_attachment_files=files.list_attachment_files,
                     attachment_text_files=files.attachment_text_files,
+                    force_reocr=a.force_reocr,
                     llm_json=llm_json, embed=embed, encode=encode, decode=decode)
                 conn.commit()
                 done["exists" if r["status"] == "exists" else "imported"] += 1
