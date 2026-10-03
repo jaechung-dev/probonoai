@@ -164,7 +164,7 @@ class TestImportMessage(unittest.TestCase):
     RAW = "My new words here.\n\nOn Mon, 2 Mar 2026, Bob <b@x.org> wrote:\n> quoted history words"
 
     def conn(self):
-        return FakeConn([OWNED, (r"^SELECT 1 FROM documents", []),
+        return FakeConn([OWNED, (r"^SELECT id FROM documents", []),
                          (r"^SELECT id, name, aliases FROM institutions", [("i1", "NSW Civil and Administrative Tribunal", ["NCAT"])]),
                          (r"^SELECT name, role_title FROM parties", []),
                          (r"^INSERT INTO documents", docs_responder()),
@@ -256,10 +256,30 @@ class TestImportMessage(unittest.TestCase):
         self.assertFalse(any(e.startswith("[email") and "p." in e.split("\n")[0] for e in embeds))
 
     def test_existing_external_id_is_skipped(self):
-        conn = FakeConn([OWNED, (r"^SELECT 1 FROM documents", [(1,)])])
-        res, calls, embeds = self.run_msg(conn)
+        # email already exists and no attachments → no mutations at all
+        conn = FakeConn([OWNED, (r"^SELECT id FROM documents", [("existing-id",)]),
+                         (r"^SELECT thread_id FROM documents", [("th-1",)])])
+        no_att = dict(self.MSG, attachments=[])
+        res, calls, embeds = self.run_msg(conn, msg=no_att)
         self.assertEqual(res["status"], "exists")
         self.assertFalse([s for s in conn.sql() if s.startswith(("INSERT", "UPDATE", "DELETE"))])
+
+    def test_existing_email_still_processes_attachments(self):
+        # re-import path: email exists but attachments were deleted → re-insert attachments
+        conn = FakeConn([OWNED, (r"^SELECT id FROM documents", [("existing-id",)]),
+                         (r"^SELECT thread_id FROM documents", [("th-1",)]),
+                         (r"^SELECT id, name, aliases FROM institutions", []),
+                         (r"^SELECT name, role_title FROM parties", []),
+                         (r"^INSERT INTO documents", docs_responder())])
+        res, calls, embeds = self.run_msg(conn)
+        self.assertEqual(res["status"], "exists")
+        # 3 attachments in MSG; a.pdf has 2 native pages (doc-2), b.docx falls back to md, c.pdf image-only md
+        inserted = [p for s, p in conn.log if s.startswith("INSERT INTO documents")]
+        self.assertEqual(len(inserted), 3)
+        # all linked back to the existing email
+        links = [p for s, p in conn.log if s.startswith("INSERT INTO document_links")]
+        self.assertEqual(len(links), 3)
+        self.assertTrue(all(p[1] == "existing-id" for p in links))
 
     def test_ownership_fail_closed(self):
         conn = FakeConn([(r"FROM cases WHERE id", [])])
@@ -311,6 +331,64 @@ class TestV2Extensions(unittest.TestCase):
         self.assertFalse([s for s in conn.sql() if s.startswith("INSERT INTO parties")])
         dp = next(p for s, p in conn.log if s.startswith("INSERT INTO document_parties"))
         self.assertEqual(dp[1], "party-9")
+
+
+class TestExportFilesSubdirStructure(unittest.TestCase):
+    """ExportFiles must handle attachments/<ts>_<msgid>/<ts>_<msgid>_<nn>_<name> layout."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("imp", Path(__file__).resolve().parents[3] / "scripts/import_gmail_export.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.ExportFiles = mod.ExportFiles
+
+    def _make_export(self, tmp):
+        root = Path(tmp)
+        # attachments/<ts>_<msgid>/<ts>_<msgid>_<nn>_<origname>
+        att_dir = root / "attachments" / "20260101T000000Z_msg1"
+        att_dir.mkdir(parents=True)
+        (att_dir / "20260101T000000Z_msg1_0_photo.png").write_bytes(b"PNG")
+        (att_dir / "20260101T000000Z_msg1_1_report.pdf").write_bytes(b"PDF")
+        # extracted_text/<ts>_<msgid>/email.md + NN_*.md
+        txt_dir = root / "extracted_text" / "20260101T000000Z_msg1"
+        txt_dir.mkdir(parents=True)
+        (txt_dir / "email.md").write_text("email body", encoding="utf-8")
+        (txt_dir / "01_photo_ocr.md").write_text("ocr text", encoding="utf-8")
+        (txt_dir / "02_report.md").write_text("report text", encoding="utf-8")
+        return root
+
+    def test_list_attachment_files_finds_nested_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_export(tmp)
+            ef = self.ExportFiles(root)
+            names = ef.list_attachment_files()
+            self.assertIn("20260101T000000Z_msg1_0_photo.png", names)
+            self.assertIn("20260101T000000Z_msg1_1_report.pdf", names)
+            self.assertEqual(len(names), 2)
+
+    def test_attachment_text_files_independent_of_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_export(tmp)
+            ef = self.ExportFiles(root)
+            # email_text_path is repo-root-relative (may not resolve from CWD)
+            msg = {"email_text_path": "data/Bella/Cat/extracted_text/20260101T000000Z_msg1/email.md"}
+            # Regardless of CWD, should find the md files using self.root directly
+            atf = ef.attachment_text_files(msg)
+            self.assertIn(1, atf)
+            self.assertIn(2, atf)
+            self.assertTrue(atf[1].endswith("01_photo_ocr.md"))
+            self.assertTrue(atf[2].endswith("02_report.md"))
+
+    def test_read_pdf_pages_finds_file_in_subdir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_export(tmp)
+            ef = self.ExportFiles(root)
+            # Should find the file even though it's nested; returns None (not real PDF bytes)
+            result = ef.read_pdf_pages("20260101T000000Z_msg1_1_report.pdf")
+            # File exists but bytes are b"PDF" (not real PDF) → fitz raises → returns None
+            self.assertIsNone(result)
+            # Non-existent file also returns None
+            self.assertIsNone(ef.read_pdf_pages("nope.pdf"))
 
 
 class TestScriptDryRun(unittest.TestCase):

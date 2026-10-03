@@ -278,13 +278,19 @@ def content_hash(external_id: str, raw: str) -> str:
 
 # ── Attachment text selection ──────────────────────────────────────────────────
 
-def find_attachment_file(names: list[str], entry: str, message_id: str) -> Optional[str]:
-    """Locate the original in attachments/: exact name, else '<ts>_<msgid>_<nn>_<origname>' ending."""
+def find_attachment_file(names: list[str], entry: str, message_id: str, idx: int = 0) -> Optional[str]:
+    """Locate the original in attachments/: exact name, else '<ts>_<msgid>_<nn>_<origname>' ending.
+    When entry is blank (manifest stores '' for all attachments), fall back to matching by
+    message_id and 0-based index position in the sorted filename list for that message."""
     if entry in names:
         return entry
-    cands = [n for n in names if n.endswith("_" + entry)]
-    pref = [n for n in cands if message_id in n]
-    return (pref or cands or [None])[0]
+    if entry:
+        cands = [n for n in names if n.endswith("_" + entry)]
+        pref = [n for n in cands if message_id in n]
+        return (pref or cands or [None])[0]
+    # blank entry: match <ts>_<msgid>_<idx>_<name> pattern
+    id_cands = sorted(n for n in names if message_id in n)
+    return id_cands[idx] if idx < len(id_cands) else None
 
 
 def choose_pages(native_pages: Optional[list[str]], fallback_md: Optional[str]) -> tuple[list[str], bool]:
@@ -317,42 +323,59 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
     """
     cur = conn.cursor()
     v2.check_case_owner(cur, user_id, case_id)
-    cur.execute("SELECT 1 FROM documents WHERE case_id = %s AND user_id = %s AND external_id = %s",
+    cur.execute("SELECT id FROM documents WHERE case_id = %s AND user_id = %s AND external_id = %s",
                 (case_id, user_id, msg["message_id"]))
-    if cur.fetchone():
-        return {"status": "exists", "attachments": 0}
-
-    cur.execute("SELECT id, name, aliases FROM institutions WHERE user_id IS NULL OR user_id = %s", (user_id,))
-    institutions = [{"id": r[0], "name": r[1], "aliases": r[2] or []} for r in cur.fetchall()]
-    cur.execute("SELECT name, role_title FROM parties WHERE case_id = %s AND user_id = %s", (case_id, user_id))
-    existing = [(r[0], r[1]) for r in cur.fetchall()]
+    email_row = cur.fetchone()
+    email_exists = email_row is not None
 
     origin = message_origin(*msg["sender"], owner_emails, owner_names)
     upload_meta = {"source-origin": origin}
-    meta = build_email_meta(msg, institutions, existing)
 
-    raw = read_text(msg["email_text_path"]) if msg.get("email_text_path") else None
-    if raw is None:
-        raise ValueError("email text missing")
-    raw = raw.strip()
-    indexed = raw if keep_quotes else (strip_quoted(raw) or raw)
-    common = dict(user_id=user_id, case_id=case_id, upload_meta=upload_meta, llm_json=llm_json, embed=embed,
-                  encode=encode, decode=decode, source_label=category, defer_commit=True)
+    if not email_exists:
+        cur.execute("SELECT id, name, aliases FROM institutions WHERE user_id IS NULL OR user_id = %s", (user_id,))
+        institutions = [{"id": r[0], "name": r[1], "aliases": r[2] or []} for r in cur.fetchall()]
+        cur.execute("SELECT name, role_title FROM parties WHERE case_id = %s AND user_id = %s", (case_id, user_id))
+        existing = [(r[0], r[1]) for r in cur.fetchall()]
+        meta = build_email_meta(msg, institutions, existing)
 
-    res = v2.ingest_document(
-        conn, filename="email.md", s3_key=None, external_id=msg["message_id"],
-        content_sha256=content_hash(msg["message_id"], raw), pages=[raw], index_texts=[indexed],
-        numbered_pages=False, prevalidated_meta=meta, thread_external_id=msg["thread_id"], **common)
-    email_id = res["document_id"]
-    cur.execute("SELECT thread_id FROM documents WHERE id = %s AND user_id = %s", (email_id, user_id))
-    row = cur.fetchone()
-    thread_id = str(row[0]) if row and row[0] else None
+        raw = read_text(msg["email_text_path"]) if msg.get("email_text_path") else None
+        if raw is None:
+            raise ValueError("email text missing")
+        raw = raw.strip()
+        indexed = raw if keep_quotes else (strip_quoted(raw) or raw)
+        common = dict(user_id=user_id, case_id=case_id, upload_meta=upload_meta, llm_json=llm_json, embed=embed,
+                      encode=encode, decode=decode, source_label=category, defer_commit=True)
+
+        res = v2.ingest_document(
+            conn, filename="email.md", s3_key=None, external_id=msg["message_id"],
+            content_sha256=content_hash(msg["message_id"], raw), pages=[raw], index_texts=[indexed],
+            numbered_pages=False, prevalidated_meta=meta, thread_external_id=msg["thread_id"], **common)
+        email_id = res["document_id"]
+        cur.execute("SELECT thread_id FROM documents WHERE id = %s AND user_id = %s", (email_id, user_id))
+        row = cur.fetchone()
+        thread_id = str(row[0]) if row and row[0] else None
+    else:
+        email_id = str(email_row[0])
+        cur.execute("SELECT thread_id FROM documents WHERE id = %s AND user_id = %s", (email_id, user_id))
+        row = cur.fetchone()
+        thread_id = str(row[0]) if row and row[0] else None
+        # still need meta for build_attachment_meta (sent_at, parties etc.)
+        cur.execute("SELECT id, name, aliases FROM institutions WHERE user_id IS NULL OR user_id = %s", (user_id,))
+        institutions = [{"id": r[0], "name": r[1], "aliases": r[2] or []} for r in cur.fetchall()]
+        cur.execute("SELECT name, role_title FROM parties WHERE case_id = %s AND user_id = %s", (case_id, user_id))
+        existing = [(r[0], r[1]) for r in cur.fetchall()]
+        meta = build_email_meta(msg, institutions, existing)
+        common = dict(user_id=user_id, case_id=case_id, upload_meta=upload_meta, llm_json=llm_json, embed=embed,
+                      encode=encode, decode=decode, source_label=category, defer_commit=True)
+
+    if not msg.get("attachments"):
+        return {"status": "exists" if email_exists else "imported", "attachments": 0}
 
     files = list_attachment_files()
     n_att = 0
     for idx, entry in enumerate(msg["attachments"], start=1):
         ext_id = f"{msg['message_id']}#{idx:02d}"
-        orig = find_attachment_file(files, entry, msg["message_id"])
+        orig = find_attachment_file(files, entry, msg["message_id"], idx - 1)
         native = read_pdf_pages(orig) if orig and orig.lower().endswith(".pdf") else None
         md = attachment_text_files(msg).get(idx)
         pages, numbered = choose_pages(native, read_text(md) if md else None)
@@ -364,4 +387,4 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
             prevalidated_meta=build_attachment_meta(msg, meta, entry), thread_id=thread_id,
             link_to_document_id=email_id, **common)
         n_att += 1
-    return {"status": "imported", "attachments": n_att, "origin": origin}
+    return {"status": "exists" if email_exists else "imported", "attachments": n_att, "origin": origin}

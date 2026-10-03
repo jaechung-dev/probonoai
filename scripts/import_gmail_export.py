@@ -62,17 +62,21 @@ class ExportFiles:
         return p.read_text(encoding="utf-8", errors="replace") if p else None
 
     def list_attachment_files(self):
+        # Attachments may be nested in per-message subdirs (<ts>_<msgid>/)
         d = self.root / "attachments"
-        return sorted(f.name for f in d.iterdir() if f.is_file()) if d.is_dir() else []
+        return sorted(f.name for f in d.rglob("*") if f.is_file()) if d.is_dir() else []
 
     def read_pdf_pages(self, name):
         """Native text per page (same rule as handler._parse_pdf_pages, minus OCR). None if unavailable."""
-        p = self._safe(f"attachments/{name}")
-        if not p:
+        d = self.root / "attachments"
+        if not d.is_dir():
+            return None
+        matches = [f for f in d.rglob(name) if f.is_file()]
+        if not matches:
             return None
         try:
             import fitz  # PyMuPDF
-            with fitz.open(p) as doc:
+            with fitz.open(matches[0]) as doc:
                 return [page.get_text() for page in doc]
         except Exception:
             return None
@@ -80,16 +84,19 @@ class ExportFiles:
     def attachment_text_files(self, msg):
         """{nn: relative path of extracted .md} from extracted_text/<ts>_<msgid>/NN_*.md."""
         tp = msg.get("email_text_path")
-        out = {}
         if not tp:
-            return out
-        # email_text_path is repo-root-relative; resolve from CWD (repo root).
-        d = (Path.cwd() / str(tp)).resolve().parent
-        if d.is_dir() and (d == self.root or self.root in d.parents):
-            for f in sorted(d.iterdir()):
-                m = re.match(r"(\d+)_", f.name)
-                if f.suffix == ".md" and m:
-                    out.setdefault(int(m.group(1)), str(f.relative_to(self.root)))
+            return {}
+        # Derive the per-message dir name from email_text_path (parent of email.md).
+        # This avoids CWD dependency: works regardless of where the script is invoked from.
+        msg_dir = Path(str(tp)).parent.name
+        d = self.root / "extracted_text" / msg_dir
+        if not d.is_dir():
+            return {}
+        out = {}
+        for f in sorted(d.iterdir()):
+            m = re.match(r"(\d+)_", f.name)
+            if f.suffix == ".md" and m:
+                out.setdefault(int(m.group(1)), str(f.relative_to(self.root)))
         return out
 
 
