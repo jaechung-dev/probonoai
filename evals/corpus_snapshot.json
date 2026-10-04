@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-10-04T11:56:30+00:00",
+  "tables": {
+    "legislation_chunks": {
+      "chunk_count": 830,
+      "distinct_citations": 743,
+      "hash": "3d8c77eab0a48692"
+    },
+    "caselaw_chunks": {
+      "chunk_count": 300,
+      "distinct_citations": 209,
+      "hash": "9b39243472a53c8f"
+    }
+  },
+  "corpus_hash": "5c3c7d2fe03c1355",
+  "hash_method": "sha256 over sorted 'table|citation|md5(text)' lines; no text stored"
+}

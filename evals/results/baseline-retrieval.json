@@ -1,0 +1,936 @@
+{
+  "kind": "retrieval",
+  "timestamp": "2026-10-04T11:58:37+00:00",
+  "meta": {
+    "commit": "6e2a09d",
+    "model": null,
+    "embed_model": "text-embedding-3-small",
+    "corpus_hash": "5c3c7d2fe03c1355",
+    "prompt_hash": "49cc52186e4a4d99",
+    "golden_hash": "57abdbbc06d3b3e4"
+  },
+  "metrics": {
+    "n": 41,
+    "recall@4": 0.8902,
+    "recall@8": 0.939,
+    "hit@4": 0.9512,
+    "hit@8": 0.9756,
+    "mrr": 0.8181
+  },
+  "per_question": [
+    {
+      "id": "g001",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 41"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 27",
+        "Residential Tenancies Act 2010 (NSW) s 41",
+        "Residential Tenancies Act 2010 (NSW) s 99",
+        "Residential Tenancies Act 2010 (NSW) s 156C",
+        "Residential Tenancies Act 2010 (NSW) s 153",
+        "Residential Tenancies Act 2010 (NSW) s 85",
+        "Residential Tenancies Act 2010 (NSW) s 84",
+        "Residential Tenancies Act 2010 (NSW) s 87"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g002",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 32"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 32",
+        "Residential Tenancies Act 2010 (NSW) s 38",
+        "Residential Tenancies Act 2010 (NSW) s 40",
+        "Residential Tenancies Act 2010 (NSW) s 24",
+        "Residential Tenancies Act 2010 (NSW) s 41",
+        "Residential Tenancies Act 2010 (NSW) s 35",
+        "Residential Tenancies Act 2010 (NSW) s 123",
+        "Residential Tenancies Act 2010 (NSW) s 23"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g003",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 24"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 24",
+        "Residential Tenancies Act 2010 (NSW) s 25",
+        "Residential Tenancies Act 2010 (NSW) s 23",
+        "Residential Tenancies Act 2010 (NSW) s 123",
+        "Residential Tenancies Act 2010 (NSW) s 48",
+        "Residential Tenancies Act 2010 (NSW) s 162",
+        "Residential Tenancies Act 2010 (NSW) s 33",
+        "Residential Tenancies Act 2010 (NSW) s 159"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g004",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 39"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 39",
+        "Residential Tenancies Act 2010 (NSW) s 40",
+        "Residential Tenancies Act 2010 (NSW) s 139",
+        "Residential Tenancies Act 2010 (NSW) s 38",
+        "Residential Tenancies Act 2010 (NSW) s 163",
+        "Residential Tenancies Act 2010 (NSW) s 116",
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 88"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g005",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 36"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 36",
+        "Residential Tenancies Act 2010 (NSW) s 37",
+        "Residential Tenancies Act 2010 (NSW) s 35",
+        "Residential Tenancies Act 2010 (NSW) s 48",
+        "Residential Tenancies Act 2010 (NSW) s 33",
+        "Residential Tenancies Act 2010 (NSW) s 24",
+        "Residential Tenancies Act 2010 (NSW) s 23",
+        "Residential Tenancies Act 2010 (NSW) s 163"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g006",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 44"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 44",
+        "Residential Tenancies Act 2010 (NSW) s 141",
+        "Residential Tenancies Act 2010 (NSW) s 45",
+        "Residential Tenancies Act 2010 (NSW) s 187",
+        "Residential Tenancies Act 2010 (NSW) s 69",
+        "Residential Tenancies Act 2010 (NSW) s 46",
+        "Residential Tenancies Act 2010 (NSW) s 207",
+        "Residential Tenancies Act 2010 (NSW) s 123"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g007",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 53"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 53",
+        "Residential Tenancies Act 2010 (NSW) s 57",
+        "Residential Tenancies Act 2010 (NSW) s 56",
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 76",
+        "Residential Tenancies Act 2010 (NSW) s 58",
+        "Residential Tenancies Act 2010 (NSW) s 60",
+        "Residential Tenancies Act 2010 (NSW) s 49"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g008",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 57"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 53",
+        "Residential Tenancies Act 2010 (NSW) s 27",
+        "Residential Tenancies Act 2010 (NSW) s 57",
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 29",
+        "Residential Tenancies Act 2010 (NSW) s 86",
+        "Residential Tenancies Act 2010 (NSW) s 56",
+        "Residential Tenancies Act 2010 (NSW) s 149"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.3333333333333333
+    },
+    {
+      "id": "g009",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 50",
+        "Residential Tenancies Act 2010 (NSW) s 55"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 56",
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 57",
+        "Residential Tenancies Act 2010 (NSW) s 59",
+        "Residential Tenancies Act 2010 (NSW) s 58",
+        "Residential Tenancies Act 2010 (NSW) s 51",
+        "Residential Tenancies Act 2010 (NSW) s 60",
+        "Residential Tenancies Act 2010 (NSW) s 50"
+      ],
+      "recall@4": 0.5,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g010",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 63"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 63",
+        "Residential Tenancies Act 2010 (NSW) s 64",
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 65",
+        "Residential Tenancies Act 2010 (NSW) s 64A",
+        "Residential Tenancies Act 2010 (NSW) s 40",
+        "Residential Tenancies Act 2010 (NSW) s 65B",
+        "Residential Tenancies Act 2010 (NSW) s 69"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g011",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 64"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 64",
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 47",
+        "Residential Tenancies Act 2010 (NSW) s 48",
+        "Residential Tenancies Act 2010 (NSW) s 65B",
+        "Residential Tenancies Act 2010 (NSW) s 107",
+        "Residential Tenancies Act 2010 (NSW) s 69",
+        "Residential Tenancies Act 2010 (NSW) s 65"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g012",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 64A"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 64A",
+        "Residential Tenancies Act 2010 (NSW) s 65",
+        "Residential Tenancies Act 2010 (NSW) s 64",
+        "Residential Tenancies Act 2010 (NSW) s 70",
+        "Residential Tenancies Act 2010 (NSW) s 63",
+        "Residential Tenancies Act 2010 (NSW) s 71",
+        "Residential Tenancies Act 2010 (NSW) s 52",
+        "Residential Tenancies Act 2010 (NSW) s 65B"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g013",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 66",
+        "Residential Tenancies Act 2010 (NSW) s 68"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 66",
+        "Residential Tenancies Act 2010 (NSW) s 71",
+        "Residential Tenancies Act 2010 (NSW) s 67",
+        "Residential Tenancies Act 2010 (NSW) s 51",
+        "Residential Tenancies Act 2010 (NSW) s 68",
+        "Residential Tenancies Act 2010 (NSW) s 74",
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 56"
+      ],
+      "recall@4": 0.5,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g014",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 70",
+        "Residential Tenancies Act 2010 (NSW) s 71"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 70",
+        "Residential Tenancies Act 2010 (NSW) s 71",
+        "Residential Tenancies Act 2010 (NSW) s 72",
+        "Residential Tenancies Act 2010 (NSW) s 73",
+        "Residential Tenancies Act 2010 (NSW) s 157A",
+        "Residential Tenancies Act 2010 (NSW) s 191",
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 163"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g015",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 84"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 84",
+        "Residential Tenancies Act 2010 (NSW) s 96",
+        "Residential Tenancies Act 2010 (NSW) s 100",
+        "Residential Tenancies Act 2010 (NSW) s 87",
+        "Residential Tenancies Act 2010 (NSW) s 99",
+        "Residential Tenancies Act 2010 (NSW) s 98",
+        "Residential Tenancies Act 2010 (NSW) s 101",
+        "Residential Tenancies Act 2010 (NSW) s 86"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g016",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 86"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 76",
+        "Residential Tenancies Act 2010 (NSW) s 86",
+        "Residential Tenancies Act 2010 (NSW) s 95",
+        "Residential Tenancies Act 2010 (NSW) s 149",
+        "Residential Tenancies Act 2010 (NSW) s 53",
+        "Residential Tenancies Act 2010 (NSW) s 110",
+        "Residential Tenancies Act 2010 (NSW) s 100",
+        "Residential Tenancies Act 2010 (NSW) s 148"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g017",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 88"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 87",
+        "Residential Tenancies Act 2010 (NSW) s 98",
+        "Residential Tenancies Act 2010 (NSW) s 85",
+        "Residential Tenancies Act 2010 (NSW) s 84",
+        "Residential Tenancies Act 2010 (NSW) s 98A",
+        "Residential Tenancies Act 2010 (NSW) s 97",
+        "Residential Tenancies Act 2010 (NSW) s 110",
+        "Residential Tenancies Act 2010 (NSW) s 86"
+      ],
+      "recall@4": 0.0,
+      "recall@8": 0.0,
+      "hit@4": 0.0,
+      "hit@8": 0.0,
+      "rr": 0.0
+    },
+    {
+      "id": "g018",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 96",
+        "Residential Tenancies Act 2010 (NSW) s 100"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 84",
+        "Residential Tenancies Act 2010 (NSW) s 96",
+        "Residential Tenancies Act 2010 (NSW) s 99",
+        "Residential Tenancies Act 2010 (NSW) s 100",
+        "Residential Tenancies Act 2010 (NSW) s 87",
+        "Residential Tenancies Act 2010 (NSW) s 98",
+        "Residential Tenancies Act 2010 (NSW) s 98A",
+        "Residential Tenancies Act 2010 (NSW) s 110"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g019",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 104"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 104",
+        "Residential Tenancies Act 2010 (NSW) s 93",
+        "Residential Tenancies Act 2010 (NSW) s 100",
+        "Residential Tenancies Act 2010 (NSW) s 149",
+        "Residential Tenancies Act 2010 (NSW) s 87",
+        "Residential Tenancies Act 2010 (NSW) s 84",
+        "Residential Tenancies Act 2010 (NSW) s 107",
+        "Residential Tenancies Act 2010 (NSW) s 99"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g020",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 105C",
+        "Residential Tenancies Act 2010 (NSW) s 79"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 105B",
+        "Residential Tenancies Act 2010 (NSW) s 105C",
+        "Residential Tenancies Act 2010 (NSW) s 105D",
+        "Residential Tenancies Act 2010 (NSW) s 105E",
+        "Residential Tenancies Act 2010 (NSW) s 54A",
+        "Residential Tenancies Act 2010 (NSW) s 79",
+        "Residential Tenancies Act 2010 (NSW) s 92",
+        "Residential Tenancies Act 2010 (NSW) s 54"
+      ],
+      "recall@4": 0.5,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g021",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 159"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 161",
+        "Residential Tenancies Act 2010 (NSW) s 159",
+        "Residential Tenancies Act 2010 (NSW) s 162",
+        "Residential Tenancies Act 2010 (NSW) s 160",
+        "Residential Tenancies Act 2010 (NSW) s 165",
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 156D",
+        "Residential Tenancies Act 2010 (NSW) s 157A"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g022",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 162"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 162",
+        "Residential Tenancies Act 2010 (NSW) s 165",
+        "Residential Tenancies Act 2010 (NSW) s 159",
+        "Residential Tenancies Act 2010 (NSW) s 163",
+        "Residential Tenancies Act 2010 (NSW) s 156D",
+        "Residential Tenancies Act 2010 (NSW) s 161",
+        "Residential Tenancies Act 2010 (NSW) s 175",
+        "Residential Tenancies Act 2010 (NSW) s 157A"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g023",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 165"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 163",
+        "Residential Tenancies Act 2010 (NSW) s 165",
+        "Residential Tenancies Act 2010 (NSW) s 157",
+        "Residential Tenancies Act 2010 (NSW) s 161",
+        "Residential Tenancies Act 2010 (NSW) s 167",
+        "Residential Tenancies Act 2010 (NSW) s 160",
+        "Residential Tenancies Act 2010 (NSW) s 156D"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g024",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 164",
+        "Residential Tenancies Act 2010 (NSW) s 167"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 166",
+        "Residential Tenancies Act 2010 (NSW) s 163",
+        "Residential Tenancies Act 2010 (NSW) s 165",
+        "Residential Tenancies Act 2010 (NSW) s 174",
+        "Residential Tenancies Act 2010 (NSW) s 175",
+        "Residential Tenancies Act 2010 (NSW) s 161",
+        "Residential Tenancies Act 2010 (NSW) s 162",
+        "Residential Tenancies Act 2010 (NSW) s 167"
+      ],
+      "recall@4": 0.0,
+      "recall@8": 0.5,
+      "hit@4": 0.0,
+      "hit@8": 1.0,
+      "rr": 0.125
+    },
+    {
+      "id": "g025",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 107"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 107",
+        "Residential Tenancies Act 2010 (NSW) s 104",
+        "Residential Tenancies Act 2010 (NSW) s 93",
+        "Residential Tenancies Act 2010 (NSW) s 105D",
+        "Residential Tenancies Act 2010 (NSW) s 84",
+        "Residential Tenancies Act 2010 (NSW) s 99",
+        "Residential Tenancies Act 2010 (NSW) s 103A",
+        "Residential Tenancies Act 2010 (NSW) s 87"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g026",
+      "category": "tenancy",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 50"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 50",
+        "Residential Tenancies Act 2010 (NSW) s 51",
+        "Residential Tenancies Act 2010 (NSW) s 49",
+        "Residential Tenancies Act 2010 (NSW) s 43",
+        "Residential Tenancies Act 2010 (NSW) s 110",
+        "Residential Tenancies Act 2010 (NSW) s 10",
+        "Residential Tenancies Act 2010 (NSW) s 95",
+        "Residential Tenancies Act 2010 (NSW) s 32"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g027",
+      "category": "criminal",
+      "expected": [
+        "Evidence Act 1995 (NSW) s 90"
+      ],
+      "retrieved_top8": [
+        "Evidence Act 1995 (NSW) s 138",
+        "Evidence Act 1995 (NSW) s 90",
+        "Criminal Procedure Act 1986 (NSW) s 306V",
+        "Criminal Procedure Act 1986 (NSW) s 247X",
+        "Residential Tenancies Act 2010 (NSW) s 198",
+        "Evidence Act 1995 (NSW) s 192A",
+        "Evidence Act 1995 (NSW) s 37",
+        "Criminal Procedure Act 1986 (NSW) s 231"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.5
+    },
+    {
+      "id": "g028",
+      "category": "criminal",
+      "expected": [
+        "Evidence Act 1995 (NSW) s 90"
+      ],
+      "retrieved_top8": [
+        "Evidence Act 1995 (NSW) s 90",
+        "Evidence Act 1995 (NSW) s 135",
+        "Evidence Act 1995 (NSW) s 138",
+        "Criminal Procedure Act 1986 (NSW) s 297",
+        "Evidence Act 1995 (NSW) s 102",
+        "Criminal Procedure Act 1986 (NSW) s 97",
+        "Crimes Act 1900 (NSW) s 331",
+        "Evidence Act 1995 (NSW) s 106"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g029",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 178"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 178",
+        "Criminal Procedure Act 1986 (NSW) s 54",
+        "Criminal Procedure Act 1986 (NSW) s 247D",
+        "Criminal Procedure Act 1986 (NSW) s 50",
+        "Criminal Procedure Act 1986 (NSW) s 177",
+        "Criminal Procedure Act 1986 (NSW) s 32",
+        "Criminal Procedure Act 1986 (NSW) s 252",
+        "Legal Profession Uniform Law Application Regulation 2015 (2015-330) (NSW) s 1"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g030",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 97"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 97",
+        "Criminal Procedure Act 1986 (NSW) s 157",
+        "Criminal Procedure Act 1986 (NSW) s 118",
+        "Criminal Procedure Act 1986 (NSW) s 99",
+        "Legal Profession Uniform Conduct (Barristers) Rules 2015 (2015-243) (NSW) s 39",
+        "Criminal Procedure Act 1986 (NSW) s 44",
+        "Criminal Procedure Act 1986 (NSW) s 207",
+        "Criminal Procedure Act 1986 (NSW) s 117"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g031",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 156"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 156",
+        "Criminal Procedure Act 1986 (NSW) s 168",
+        "Crimes Act 1900 (NSW) s 331",
+        "Crimes Act 1900 (NSW) s 314",
+        "Crimes Act 1900 (NSW) s 344A",
+        "Criminal Procedure Act 1986 (NSW) s 294CA",
+        "Crimes Act 1900 (NSW) s 475A",
+        "Crimes Act 1900 (NSW) s 61JA"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g032",
+      "category": "criminal",
+      "expected": [
+        "Evidence Act 1995 (NSW) s 97",
+        "Evidence Act 1995 (NSW) s 100"
+      ],
+      "retrieved_top8": [
+        "Evidence Act 1995 (NSW) s 97",
+        "Evidence Act 1995 (NSW) s 94",
+        "Evidence Act 1995 (NSW) s 102",
+        "Evidence Act 1995 (NSW) s 106",
+        "Criminal Procedure Act 1986 (NSW) s 294CA",
+        "Evidence Act 1995 (NSW) s 90",
+        "Criminal Procedure Act 1986 (NSW) s 200",
+        "Evidence Act 1995 (NSW) s 138"
+      ],
+      "recall@4": 0.5,
+      "recall@8": 0.5,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g033",
+      "category": "criminal",
+      "expected": [
+        "Evidence Act 1995 (NSW) s 97",
+        "Evidence Act 1995 (NSW) s 100"
+      ],
+      "retrieved_top8": [
+        "Evidence Act 1995 (NSW) s 97",
+        "Evidence Act 1995 (NSW) s 94",
+        "Evidence Act 1995 (NSW) s 100",
+        "Evidence Act 1995 (NSW) s 106",
+        "Evidence Act 1995 (NSW) s 108",
+        "Evidence Act 1995 (NSW) s 135",
+        "Evidence Act 1995 (NSW) s 90",
+        "Criminal Procedure Act 1986 (NSW) s 306ZP"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g034",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 157"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 157",
+        "Criminal Procedure Act 1986 (NSW) s 97",
+        "Criminal Procedure Act 1986 (NSW) s 99",
+        "Criminal Procedure Act 1986 (NSW) s 207",
+        "Legal Profession Uniform Conduct (Barristers) Rules 2015 (2015-243) (NSW) s 39",
+        "Criminal Procedure Act 1986 (NSW) s 156",
+        "Criminal Procedure Act 1986 (NSW) s 202",
+        "Crimes Act 1900 (NSW) s 53"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g035",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 61"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 61",
+        "Criminal Procedure Act 1986 (NSW) s 114",
+        "Criminal Procedure Act 1986 (NSW) s 200",
+        "Criminal Procedure Act 1986 (NSW) s 247J",
+        "Criminal Procedure Act 1986 (NSW) s 144",
+        "Criminal Procedure Act 1986 (NSW) s 185",
+        "Criminal Procedure Act 1986 (NSW) s 231",
+        "Criminal Procedure Act 1986 (NSW) s 247D"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g036",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 132A"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 132A",
+        "Criminal Procedure Act 1986 (NSW) s 202",
+        "Criminal Procedure Act 1986 (NSW) s 200",
+        "Criminal Procedure Act 1986 (NSW) s 252",
+        "Criminal Procedure Act 1986 (NSW) s 37",
+        "Criminal Procedure Act 1986 (NSW) s 207",
+        "Criminal Procedure Act 1986 (NSW) s 289Q",
+        "Criminal Procedure Act 1986 (NSW) s 41"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g037",
+      "category": "criminal",
+      "expected": [
+        "Criminal Procedure Act 1986 (NSW) s 348"
+      ],
+      "retrieved_top8": [
+        "Criminal Procedure Act 1986 (NSW) s 348",
+        "Criminal Procedure Act 1986 (NSW) s 219",
+        "Legal Profession Uniform Law (NSW) s 322",
+        "Legal Profession Uniform Law (NSW) s 362",
+        "Criminal Procedure Act 1986 (NSW) s 168",
+        "Residential Tenancies Act 2010 (NSW) s 202",
+        "Crimes Act 1900 (NSW) s 475A",
+        "Criminal Procedure Act 1986 (NSW) s 6"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g038",
+      "category": "legalprof",
+      "expected": [
+        "Legal Profession Uniform Law (NSW) s 174"
+      ],
+      "retrieved_top8": [
+        "Legal Profession Uniform Law (NSW) s 174",
+        "Legal Profession Uniform Law (NSW) s 173",
+        "Legal Profession Uniform Law (NSW) s 183",
+        "Legal Profession Uniform Law (NSW) s 472",
+        "Legal Profession Uniform Conduct (Barristers) Rules 2015 (2015-243) (NSW) s 17",
+        "Legal Profession Uniform Law (NSW) s 176",
+        "Legal Profession Uniform Law Australian Solicitors\u2019 Conduct Rules 2015 (2015-244) (NSW) s 15",
+        "Legal Profession Uniform Legal Practice (Solicitors) Rules 2015 (2015-245) (NSW) s 10"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g039",
+      "category": "legalprof",
+      "expected": [
+        "Legal Profession Uniform Law (NSW) s 183"
+      ],
+      "retrieved_top8": [
+        "Legal Profession Uniform Conduct (Barristers) Rules 2015 (2015-243) (NSW) s 17",
+        "Legal Profession Uniform Legal Practice (Solicitors) Rules 2015 (2015-245) (NSW) s 10",
+        "Legal Profession Uniform Law Application Act 2014 (NSW) s 56",
+        "Legal Profession Uniform Law (NSW) s 183",
+        "Legal Profession Uniform Law Application Regulation 2015 (2015-330) (NSW) s 6",
+        "Legal Profession Uniform Law Application Regulation 2015 (2015-330) (NSW) s 1",
+        "Legal Profession Uniform Law Application Act 2014 (NSW) s 93E",
+        "Legal Profession Uniform Conduct (Barristers) Rules 2015 (2015-243) (NSW) s 35"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.25
+    },
+    {
+      "id": "g040",
+      "category": "legalprof",
+      "expected": [
+        "Legal Profession Uniform Law (NSW) s 269"
+      ],
+      "retrieved_top8": [
+        "Legal Profession Uniform Law (NSW) s 269",
+        "Legal Profession Uniform Law Australian Solicitors\u2019 Conduct Rules 2015 (2015-244) (NSW) s 20",
+        "Legal Profession Uniform Law (NSW) s 174",
+        "Legal Profession Uniform Law Australian Solicitors\u2019 Conduct Rules 2015 (2015-244) (NSW) s 19",
+        "Legal Profession Uniform Conduct (Barristers) Rules 2015 (2015-243) (NSW) s 35",
+        "Legal Profession Uniform Law Australian Solicitors\u2019 Conduct Rules 2015 (2015-244) (NSW) s 21",
+        "Legal Profession Uniform Law (NSW) s 307",
+        "Criminal Procedure Act 1986 (NSW) s 117"
+      ],
+      "recall@4": 1.0,
+      "recall@8": 1.0,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 1.0
+    },
+    {
+      "id": "g056",
+      "category": "safety",
+      "expected": [
+        "Residential Tenancies Act 2010 (NSW) s 50",
+        "Residential Tenancies Act 2010 (NSW) s 70"
+      ],
+      "retrieved_top8": [
+        "Residential Tenancies Act 2010 (NSW) s 71",
+        "Residential Tenancies Act 2010 (NSW) s 55",
+        "Residential Tenancies Act 2010 (NSW) s 70",
+        "Residential Tenancies Act 2010 (NSW) s 57",
+        "Residential Tenancies Act 2010 (NSW) s 72",
+        "Residential Tenancies Act 2010 (NSW) s 59",
+        "Residential Tenancies Act 2010 (NSW) s 56",
+        "Residential Tenancies Act 2010 (NSW) s 166"
+      ],
+      "recall@4": 0.5,
+      "recall@8": 0.5,
+      "hit@4": 1.0,
+      "hit@8": 1.0,
+      "rr": 0.3333333333333333
+    }
+  ]
+}
