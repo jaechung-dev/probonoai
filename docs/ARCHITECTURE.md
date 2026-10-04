@@ -93,3 +93,31 @@ logged and silently bypassed to avoid blocking legitimate users.
 Greetings and small talk (`hi`, `how are you`, `thanks`, etc.) are matched by
 a second regex and returned a polite redirect — no retrieval, no LLM call,
 no token cost.
+
+## 6. Evaluation Pipeline
+
+Automated, repeatable quality checks live in [`evals/`](../evals/README.md). They run against the same
+retrieval and prompt path as production (`/ask`, legislation, NSW) and never write to the database.
+
+```
+golden.jsonl (hand-written, synthetic)
+      │
+      ├─► retrieval_eval.py ─► recall@4 / recall@8 / hit@k / MRR
+      └─► answer_eval.py    ─► citation validity, disclaimer, forbidden-pattern checks
+                │
+                ▼
+      results/*.json  (commit, model, embed model, corpus hash, prompt hash, golden hash)
+                │
+                ▼
+      compare.py BASELINE NEW ─► per-metric tolerance check, exit 1 on regression
+```
+
+Design rules:
+
+- **Read-only.** Every psycopg2 connection in the eval process is forced to `readonly=True`.
+- **Golden set is not derived from the corpus.** Questions are written by hand with no real persons, case numbers or
+  document titles, and linted by `validate_golden.py`. Expected citations must exist in the corpus.
+- **Reproducibility.** `corpus_snapshot.json` stores chunk/citation counts and a corpus hash, so a metric change can be
+  attributed to the corpus, the prompt, the model or the golden set.
+- **Known limits.** Legislation only; regex checks are a first line of defence, not a substitute for LLM-judge or
+  human review. See `evals/README.md`.

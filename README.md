@@ -641,6 +641,7 @@ tests/                   integration tests against production API
   test_api_smoke.py        health, search, ask, chat smoke
   test_mcp_smoke.py        MCP tool smoke
   test_integration_judge.py  LLM-as-judge response quality evaluation
+evals/                   automated eval pipeline: retrieval (recall@k, MRR) + answer checks, regression compare (see evals/README.md)
 frontend/tests/          76 Vitest unit tests (pages, Nav, LoginModal, useGuestQuota)
 frontend/e2e/            Playwright end-to-end (auth, search, chat, timeline, MCP connect)
 ```
@@ -648,6 +649,7 @@ frontend/e2e/            Playwright end-to-end (auth, search, chat, timeline, MC
 ```bash
 pytest services/ -v          # unit tests
 pytest tests/ -v             # integration (hits production)
+python evals/retrieval_eval.py   # retrieval evals (read-only; see evals/README.md)
 cd frontend && npm test       # Vitest unit tests
 cd frontend && npx playwright test  # E2E (requires built frontend)
 ```
