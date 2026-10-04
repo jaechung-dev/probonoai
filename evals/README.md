@@ -41,3 +41,13 @@ line of defence, not a substitute for human or LLM-judge review.
 - Questions for topics absent from the corpus measure unsupported-citation behaviour, not abstention, because the
   production prompt tells the model to always answer.
 - Golden set is small (~60); differences of a few points are noise.
+
+## CI
+`.github/workflows/evals.yml`:
+- **evals-offline** (every PR, no secrets): metric unit tests + golden schema/PII lint.
+- **evals-live** (non-fork PRs, pushes, weekly, manual): corpus snapshot, golden validation against the corpus,
+  retrieval eval, and `compare.py` against `results/baseline-retrieval.json` (fails the job on regression).
+  Needs repo secrets `EVAL_DATABASE_URL` (use a **read-only** Postgres role) and `OPENAI_API_KEY`; skipped when absent.
+
+To intentionally move the baseline (corpus, model or prompt changed), re-run the eval with
+`--out evals/results/baseline-retrieval.json` and commit it with the reason in the commit message.

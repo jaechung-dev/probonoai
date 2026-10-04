@@ -1,0 +1,82 @@
+name: Evals
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["evals/**", "services/rag/**", "services/ai/**", ".github/workflows/evals.yml"]
+  push:
+    branches: [main]
+    paths: ["evals/**", "services/rag/**", "services/ai/**"]
+  schedule:
+    - cron: "0 20 * * 0"   # weekly drift check (Sun 20:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Offline: no DB, no secrets. Runs on every PR, including forks.
+  evals-offline:
+    name: Eval unit tests + golden lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install pytest
+      - name: Metric unit tests
+        run: PYTHONPATH=evals python -m pytest evals/tests -q
+      - name: Golden schema / PII lint (no corpus access)
+        run: PYTHONPATH=evals python evals/validate_golden.py --no-corpus
+
+  # Live: read-only DB + OpenAI embeddings. Skipped on forks and when secrets are absent.
+  evals-live:
+    name: Retrieval eval vs baseline
+    runs-on: ubuntu-latest
+    needs: evals-offline
+    if: github.event.pull_request.head.repo.fork != true
+    env:
+      DATABASE_URL: ${{ secrets.EVAL_DATABASE_URL }}      # use a READ-ONLY Postgres role
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Check secrets
+        id: gate
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$OPENAI_API_KEY" ]; then
+            echo "Eval secrets not configured; skipping live evals." >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
+      - name: Corpus snapshot + golden validation
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          export PYTHONPATH=.:evals
+          python evals/corpus_snapshot.py > /dev/null
+          python evals/validate_golden.py
+      - name: Retrieval eval
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          export PYTHONPATH=.:evals
+          python evals/retrieval_eval.py --out "$RUNNER_TEMP/retrieval.json"
+      - name: Compare to committed baseline (fails on regression)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          export PYTHONPATH=.:evals
+          python evals/compare.py evals/results/baseline-retrieval.json "$RUNNER_TEMP/retrieval.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always() && steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: ${{ runner.temp }}/retrieval.json

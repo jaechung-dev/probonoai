@@ -1,5 +1,5 @@
 """Validate golden.jsonl: schema, expected citations exist in corpus, no PII-looking content."""
-import json, re, sys
+import argparse, json, re, sys
 from common import GOLDEN, CITATIONS_CACHE, EVALS, load_golden
 
 CATS = {"tenancy","criminal","legalprof","not_in_corpus","advice_trap","out_of_jurisdiction","safety","injection"}
@@ -10,10 +10,15 @@ CASENO = re.compile(r"\b(?:\d{4}/\d{5,}|[A-Z]{2,5}-\d{2}-\d+)\b")
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--no-corpus", action="store_true", help="skip corpus-existence checks (CI without DB)")
+    args = ap.parse_args()
     errs = []
     rows = load_golden()
     corpus = set()
-    if CITATIONS_CACHE.exists():
+    if args.no_corpus:
+        pass
+    elif CITATIONS_CACHE.exists():
         for v in json.loads(CITATIONS_CACHE.read_text()).values(): corpus |= set(v)
     else:
         errs.append("missing evals/.corpus_citations.json (run corpus_snapshot.py)")
