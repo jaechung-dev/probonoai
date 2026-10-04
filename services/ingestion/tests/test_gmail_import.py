@@ -300,13 +300,13 @@ class TestImportMessage(unittest.TestCase):
     def test_zero_char_existing_doc_replaced_when_ocr_yields_content(self):
         # Existing doc with page_count>0 but all pages have char_count=0 (image-only scan):
         # should be deleted and re-ingested when OCR now produces text.
-        # Simulate: existing_att = (id="scan-1", page_count=3, has_text_pages=0)
+        # Simulate: existing_att = (id, page_count=3, has_text=0, dup_count=0)
         conn = FakeConn([OWNED, (r"^SELECT id FROM documents", []),
                          (r"^SELECT id, name, aliases FROM institutions", []),
                          (r"^SELECT name, role_title FROM parties", []),
                          (r"^INSERT INTO documents", docs_responder()),
                          (r"^SELECT thread_id FROM documents", [("th-1",)]),
-                         (r"^SELECT d\.id, d\.page_count", [("scan-1", 3, 0)])])
+                         (r"^SELECT d\.id, d\.page_count", [("scan-1", 3, 0, 0)])])
         one_att_msg = dict(self.MSG, attachments=["scan.pdf"])
         res, _, _ = self.run_msg(
             conn, msg=one_att_msg,
@@ -326,7 +326,7 @@ class TestImportMessage(unittest.TestCase):
                          (r"^SELECT name, role_title FROM parties", []),
                          (r"^INSERT INTO documents", docs_responder()),
                          (r"^SELECT thread_id FROM documents", [("th-1",)]),
-                         (r"^SELECT d\.id, d\.page_count", [("existing-1", 2, 5)])])
+                         (r"^SELECT d\.id, d\.page_count", [("existing-1", 2, 5, 0)])])
         one_att_msg = dict(self.MSG, attachments=["doc.pdf"])
         res, _, _ = self.run_msg(
             conn, msg=one_att_msg,
@@ -337,6 +337,47 @@ class TestImportMessage(unittest.TestCase):
         deletes = [p for s, p in conn.log if s.startswith("DELETE FROM documents")]
         self.assertEqual(len(deletes), 1)
         self.assertEqual(str(deletes[0][0]), "existing-1")
+
+    def test_dup_only_existing_doc_is_skipped(self):
+        # Existing doc where all pages are cross-doc dups (dup_count>0, has_text=0):
+        # all_dup_only=True → skip; it's already correctly de-duplicated.
+        conn = FakeConn([OWNED, (r"^SELECT id FROM documents", []),
+                         (r"^SELECT id, name, aliases FROM institutions", []),
+                         (r"^SELECT name, role_title FROM parties", []),
+                         (r"^INSERT INTO documents", docs_responder()),
+                         (r"^SELECT thread_id FROM documents", [("th-1",)]),
+                         (r"^SELECT d\.id, d\.page_count", [("dup-doc-1", 1, 0, 1)])])
+        one_att_msg = dict(self.MSG, attachments=["scan.jpg"])
+        res, _, _ = self.run_msg(
+            conn, msg=one_att_msg,
+            list_attachment_files=lambda: ["1_m1_01_scan.jpg"],
+            attachment_text_files=lambda m: {},
+            read_attachment_pages=lambda n: (["ocr text " * 20], False))
+        deletes = [p for s, p in conn.log if s.startswith("DELETE FROM documents")]
+        self.assertEqual(len(deletes), 0)
+        inserted = [p for s, p in conn.log if s.startswith("INSERT INTO documents")]
+        self.assertEqual(len(inserted), 1)  # only email, dup-only attachment is skipped
+
+    def test_force_reocr_overrides_dup_only_skip(self):
+        # --force-reocr must replace even a dup-only doc
+        conn = FakeConn([OWNED, (r"^SELECT id FROM documents", []),
+                         (r"^SELECT id, name, aliases FROM institutions", []),
+                         (r"^SELECT name, role_title FROM parties", []),
+                         (r"^INSERT INTO documents", docs_responder()),
+                         (r"^SELECT thread_id FROM documents", [("th-1",)]),
+                         (r"^SELECT d\.id, d\.page_count", [("dup-doc-1", 1, 0, 1)])])
+        one_att_msg = dict(self.MSG, attachments=["scan.jpg"])
+        res, _, _ = self.run_msg(
+            conn, msg=one_att_msg,
+            list_attachment_files=lambda: ["1_m1_01_scan.jpg"],
+            attachment_text_files=lambda m: {},
+            read_attachment_pages=lambda n: (["ocr text " * 20], False),
+            force_reocr={"m1#01"})
+        deletes = [p for s, p in conn.log if s.startswith("DELETE FROM documents")]
+        self.assertEqual(len(deletes), 1)
+        self.assertEqual(str(deletes[0][0]), "dup-doc-1")
+        inserted = [p for s, p in conn.log if s.startswith("INSERT INTO documents")]
+        self.assertEqual(len(inserted), 2)  # email + re-ingested attachment
 
     def test_ownership_fail_closed(self):
         conn = FakeConn([(r"FROM cases WHERE id", [])])
@@ -397,6 +438,7 @@ class TestExportFilesSubdirStructure(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("imp", Path(__file__).resolve().parents[3] / "scripts/import_gmail_export.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
+        self.mod = mod
         self.ExportFiles = mod.ExportFiles
 
     def _make_export(self, tmp):
@@ -445,6 +487,22 @@ class TestExportFilesSubdirStructure(unittest.TestCase):
             self.assertEqual(result, ([], False))
             # Non-existent file also returns ([], False)
             self.assertEqual(ef.read_attachment_pages("nope.pdf"), ([], False))
+
+    def test_ocr_alphanum_threshold_rejects_noise_and_passes_real_content(self):
+        # MIN_OCR_ALPHANUM_CHARS exists and correctly separates GIF noise from real OCR content.
+        threshold = self.mod.MIN_OCR_ALPHANUM_CHARS
+        self.assertGreaterEqual(threshold, 1)
+        # GIF signature noise samples (from 19fa6d7b090ca6cb#02~05) — must fail threshold
+        for noise in ["_\n7", "7|\n_:", "ff", "_\n|", "  \n  "]:
+            count = len(re.sub(r"[^a-zA-Z0-9]", "", noise))
+            self.assertLess(count, threshold, f"noise {noise!r} ({count} chars) should be below threshold")
+        # Real content (IMG_1301.jpeg / IMG_2238.jpeg style, 407+ chars) — must pass threshold
+        for real in [
+            "Lonely cause u dont have your own to fuck",  # IMG_1301 chat screenshot
+            "rufuckingsomt hereor we re oming isabella",  # IMG_2238 chat screenshot
+        ]:
+            count = len(re.sub(r"[^a-zA-Z0-9]", "", real))
+            self.assertGreaterEqual(count, threshold, f"real content {real!r} ({count} chars) should pass")
 
     def test_read_attachment_pages_image_graceful(self):
         with tempfile.TemporaryDirectory() as tmp:

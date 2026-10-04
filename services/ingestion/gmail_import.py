@@ -391,24 +391,28 @@ def import_message(conn, *, msg: dict, user_id: str, case_id: str, category: str
             pages, numbered = ([text.strip()], False) if text else ([], False)
 
         # Idempotent re-import: check existing doc; replace only when upgrading empty → content.
-        # Force-reocr bypasses the has-text guard for the listed external_ids.
+        # Force-reocr bypasses all guards for the listed external_ids.
         cur.execute(
             """SELECT d.id, d.page_count,
                (SELECT count(*) FROM document_pages p
                 WHERE p.document_id=d.id AND p.duplicate_of_page_id IS NULL
-                AND coalesce(p.char_count,0)>0)
+                AND coalesce(p.char_count,0)>0),
+               (SELECT count(*) FROM document_pages p
+                WHERE p.document_id=d.id AND p.duplicate_of_page_id IS NOT NULL)
                FROM documents d WHERE d.case_id=%s AND d.user_id=%s AND d.external_id=%s""",
             (case_id, user_id, ext_id))
         existing_att = cur.fetchone()
         if existing_att:
             att_id = str(existing_att[0])
-            has_text = existing_att[2] > 0  # ≥1 non-dup page with char_count>0
+            has_text = existing_att[2] > 0      # ≥1 non-dup page with char_count>0
+            all_dup_only = (existing_att[1] > 0 and existing_att[3] > 0
+                            and not has_text)   # page_count>0, all pages are cross-doc dups
             forced = ext_id in force_reocr
             if forced and pages:
                 # Force re-OCR: replace regardless of current content
                 cur.execute("DELETE FROM documents WHERE id=%s AND user_id=%s", (att_id, user_id))
-            elif has_text or not pages:
-                # Has real text already, or still nothing new — skip
+            elif has_text or not pages or all_dup_only:
+                # Has real text, nothing new to add, or already correctly de-duplicated — skip
                 n_att += 1
                 continue
             else:

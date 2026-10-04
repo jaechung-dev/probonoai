@@ -21,6 +21,7 @@ from services.ingestion import gmail_import as gi  # noqa: E402
 from services.ingestion import v2  # noqa: E402
 
 MIN_PDF_CHARS_PAGE = 50
+MIN_OCR_ALPHANUM_CHARS = 15  # discard OCR output with fewer non-whitespace alphanumeric chars (catches signature noise)
 EMBED_MODEL = "text-embedding-3-small"
 
 
@@ -132,13 +133,23 @@ class ExportFiles:
         return pages
 
     def _ocr_image(self, p) -> "str | None":
-        """OCR a raster image (PNG/JPEG/GIF/etc.) using fitz + Tesseract at 300 DPI."""
+        """OCR a raster image (PNG/JPEG/GIF/etc.) using fitz + Tesseract at 300 DPI.
+        Returns None if the result has fewer than MIN_OCR_ALPHANUM_CHARS alphanumeric chars."""
         import fitz
         with fitz.open(p) as doc:
             if not doc:
                 return None
-            tp = doc[0].get_textpage_ocr(dpi=300, full=True)
-            return doc[0].get_text(textpage=tp).strip() or None
+            page = doc[0]  # hold reference so the Page object isn't GC'd between calls
+            tp = page.get_textpage_ocr(dpi=300, full=True)
+            text = page.get_text(textpage=tp).strip()
+        if not text:
+            return None
+        alphanum_count = len(re.sub(r"[^a-zA-Z0-9]", "", text))
+        if alphanum_count < MIN_OCR_ALPHANUM_CHARS:
+            print(f"  [OCR-DISCARD] {p.name}: {alphanum_count} alphanum chars < {MIN_OCR_ALPHANUM_CHARS}",
+                  file=sys.stderr)
+            return None
+        return text
 
     def _extract_docx(self, p) -> "str | None":
         """Extract text from a DOCX file using python-docx."""
