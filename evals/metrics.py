@@ -34,7 +34,7 @@ def mean(xs: list[float]) -> float:
 
 # e.g. "Residential Tenancies Act 2010 (NSW) s 41", "Evidence Act 1995 (Cth) ss 90"
 _CITE_RE = re.compile(
-    r"([A-Z][A-Za-z&'’\- ]+? (?:Act|Law|Rules|Regulation|Code)(?: [A-Za-z]+)*? (?:19|20)\d{2}(?: \((?:NSW|Cth)\))?)"
+    r"((?:[A-Z][A-Za-z&'’\-]*\s+)+?(?:Act|Law|Rules|Regulation|Code)(?: [A-Za-z]+)*?(?: (?:19|20)\d{2})?(?: \((?:NSW|Cth)\))?)"
     r"[ ,]*(?:s|ss|section|sections)\.? ?(\d+[A-Z]{0,2})",
 )
 
@@ -44,7 +44,7 @@ def extract_citations(text: str) -> list[str]:
     out = []
     for m in _CITE_RE.finditer(text):
         name = re.sub(r"\s+", " ", m.group(1)).strip()
-        name = re.sub(r"^(?:Under|See|Per|In|The|Of|Section|Sections|And|Also|Both)\s+", "", name)
+        name = re.sub(r"^(?:(?:Under|See|Per|In|The|Of|Section|Sections|And|Also|Both)\s+)+", "", name, flags=re.I)
         out.append(f"{name} s {m.group(2)}")
     return out
 

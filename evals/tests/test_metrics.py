@@ -31,3 +31,16 @@ def test_compare():
     assert all(r["regressed"] for r in rows)
     rows = M.compare_metrics({"x": .8}, {"x": .79}, {"x": .03}, {"x"})
     assert not rows[0]["regressed"]
+
+def test_citation_without_year():
+    assert M.extract_citations("See Legal Profession Uniform Law (NSW) s 174.") == ["Legal Profession Uniform Law (NSW) s 174"]
+    assert M.extract_citations("[Residential Tenancies Act 2010 (NSW) s 41]") == ["Residential Tenancies Act 2010 (NSW) s 41"]
+
+def test_in_context():
+    ctx = {"Residential Tenancies Act 2010 (NSW) s 41"}
+    assert M.citation_valid("Residential Tenancies Act 2010 s 41", ctx)
+    assert not M.citation_valid("Residential Tenancies Act 2010 s 42", ctx)
+
+def test_sentence_prefix_not_captured():
+    s = "This is outlined in the Residential Tenancies Act 2010 (NSW) s 64A."
+    assert M.extract_citations(s) == ["Residential Tenancies Act 2010 (NSW) s 64A"]

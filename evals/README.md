@@ -51,3 +51,17 @@ line of defence, not a substitute for human or LLM-judge review.
 
 To intentionally move the baseline (corpus, model or prompt changed), re-run the eval with
 `--out evals/results/baseline-retrieval.json` and commit it with the reason in the commit message.
+
+## Prompt A/B (answer eval)
+`answer_eval.py --variant {baseline,cite,cite_strict}` appends extra instructions to the production system prompt
+(the production prompt itself is not modified). Same 59 questions, gpt-4o-mini, temperature 0.
+`rescore.py` recomputes metrics from a stored result without calling the LLM.
+
+| variant | answers citing a provision | citations that exist in retrieved context | answerable questions where an expected provision was cited | disclaimer | forbidden |
+|---|---|---|---|---|---|
+| baseline (production prompt) | 0% | n/a | 0% | 100% | 0% |
+| cite | 12% | 100% (7/7) | 10% | 100% | 0% |
+| cite_strict (`Sources:` line) | 69% | 100% (46/46) | 88% | 100% | 0% |
+
+Results are in `results/baseline-answer.json`, `results/variant-*.json`. Caveats: 59 hand-written questions, one model,
+regex-based checks; "cited" means the answer names a provision, not that the legal reasoning is correct.
