@@ -112,21 +112,24 @@ def _get_user_from_header(authorization: str = None) -> str:
 
 
 def _require_case_owner(case_id: str, user_id: str) -> None:
-    """Case timeline events are private and (unlike case_chunks) carry no
-    user_id column, so ownership is verified via case_intakes. Raises 401 for
-    anonymous callers, 403 if the case belongs to someone else, 404 if unknown."""
+    """Verify the caller owns case_id. Checks the v2 cases table first, then
+    falls back to case_intakes. Raises 401 for anonymous callers, 403 if the
+    case belongs to someone else, 404 if the case does not exist."""
     if user_id == "anon":
         raise HTTPException(status_code=401, detail="Authentication required for case data")
     conn = psycopg2.connect(settings.DATABASE_URL)
     try:
         cur = conn.cursor()
-        cur.execute("SELECT user_id FROM case_intakes WHERE id::text = %s", (case_id,))
+        cur.execute("SELECT user_id FROM cases WHERE id::text = %s LIMIT 1", (case_id,))
         row = cur.fetchone()
+        if not row:
+            cur.execute("SELECT user_id FROM case_intakes WHERE id::text = %s", (case_id,))
+            row = cur.fetchone()
     finally:
         conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="Case not found")
-    if row[0] != user_id:
+    if str(row[0]) != user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
 

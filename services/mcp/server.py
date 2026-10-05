@@ -346,17 +346,35 @@ def fetch(case_id: str, ctx: Context) -> str:
     with _db() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT date, category, subject, summary FROM case_events "
-            "WHERE user_id = %s AND case_id = %s ORDER BY date",
+            "SELECT 1 FROM events WHERE user_id = %s AND case_id = %s LIMIT 1",
             (user_id, case_id),
         )
+        use_v2 = cur.fetchone() is not None
+        if use_v2:
+            cur.execute("""
+                SELECT e.occurred_on, e.event_type, e.title, e.summary
+                FROM events e
+                WHERE e.user_id = %s AND e.case_id = %s
+                ORDER BY e.occurred_on ASC NULLS LAST
+            """, (user_id, case_id))
+        else:
+            cur.execute(
+                "SELECT date, category, subject, summary FROM case_events "
+                "WHERE user_id = %s AND case_id = %s ORDER BY date",
+                (user_id, case_id),
+            )
         rows = cur.fetchall()
     if not rows:
         log.info("fetch response: case_id=%r user_id=%s — no events found", case_id, user_id)
         return f"No events found for case '{case_id}' (or you don't have access to it)."
     output = f"Case: {case_id} — {len(rows)} events\n\n"
-    for date, category, subject, summary in rows:
-        output += f"[{date}] {category} — {subject}\n{summary}\n\n"
+    if use_v2:
+        for occurred_on, event_type, title, summary in rows:
+            label = event_type or "Event"
+            output += f"[{occurred_on}] {label} — {title}\n{summary or ''}\n\n"
+    else:
+        for date, category, subject, summary in rows:
+            output += f"[{date}] {category} — {subject}\n{summary}\n\n"
     log.info("fetch response: case_id=%r user_id=%s events=%d", case_id, user_id, len(rows))
     return output
 
@@ -375,7 +393,14 @@ def collections(ctx: Context = None) -> str:
             leg_count = cur.fetchone()[0]
             cur.execute("SELECT COUNT(*) FROM caselaw_chunks")
             case_count = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(DISTINCT case_id) FROM case_events")
+            cur.execute("""
+                SELECT COUNT(DISTINCT case_id)
+                FROM (
+                    SELECT case_id FROM events
+                    UNION
+                    SELECT case_id FROM case_events
+                ) _all
+            """)
             event_cases = cur.fetchone()[0]
     except Exception:
         leg_count = case_count = event_cases = "unknown"
