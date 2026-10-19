@@ -5,20 +5,24 @@ import Spinner from '@/components/Spinner'
 import { API_URL as API } from '@/lib/config'
 import type { CaseEvent } from '@/components/TimelineClient'
 
-export default function TimelineSection({ caseId }: { caseId: string }) {
+export default function TimelineSection({ caseId, token }: { caseId: string; token: string | null }) {
   const [events, setEvents] = useState<CaseEvent[] | null>(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
+    if (!token) return
     setEvents(null); setErr('')
-    fetch(`${API}/case/${caseId}/timeline`)
-      .then(r => r.ok ? r.json() : null)
+    fetch(`${API}/case/${caseId}/timeline`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => {
+        if (r.status === 401 || r.status === 403) throw new Error('auth')
+        return r.ok ? r.json() : null
+      })
       .then(d => {
         if (d?.events) setEvents(d.events)
         else setErr('No timeline events found for this case.')
       })
       .catch(() => setErr('Could not load timeline.'))
-  }, [caseId])
+  }, [caseId, token])
 
   return (
     <div>
