@@ -18,7 +18,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import AsyncIterator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import psycopg2
 from psycopg2.extras import Json
@@ -400,11 +400,18 @@ def timeline(case_id: str):
     conn = psycopg2.connect(DSN)
     try:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT 1 FROM events WHERE case_id = %s LIMIT 1",
-            (case_id,),
-        )
-        use_v2 = cur.fetchone() is not None
+        use_v2 = False
+        # events.case_id is UUID; legacy case_events ids are free-form TEXT.
+        try:
+            UUID(case_id)
+        except ValueError:
+            pass
+        else:
+            cur.execute(
+                "SELECT 1 FROM events WHERE case_id = %s LIMIT 1",
+                (case_id,),
+            )
+            use_v2 = cur.fetchone() is not None
         if use_v2:
             cur.execute("""
                 SELECT e.occurred_on, e.event_type, e.title, e.summary, e.excerpt
