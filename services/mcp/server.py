@@ -19,6 +19,7 @@ import json
 import logging
 import hashlib
 import time
+import uuid as _uuid
 import requests
 import psycopg2
 from contextlib import contextmanager
@@ -95,6 +96,15 @@ def _db():
 
 def _h(s: str) -> str:
     return hashlib.sha256(s.encode()).hexdigest()
+
+
+def _is_uuid(value: str) -> bool:
+    # v2 tables key case_id as UUID; legacy case_events uses free-form TEXT ids.
+    try:
+        _uuid.UUID(value)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 
 # ── Allowed-hosts middleware ────────────────────────────────────────────────────
@@ -345,11 +355,13 @@ def fetch(case_id: str, ctx: Context) -> str:
     log.info("fetch request: case_id=%r user_id=%s", case_id, user_id)
     with _db() as conn:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT 1 FROM events WHERE user_id = %s AND case_id = %s LIMIT 1",
-            (user_id, case_id),
-        )
-        use_v2 = cur.fetchone() is not None
+        use_v2 = False
+        if _is_uuid(case_id):
+            cur.execute(
+                "SELECT 1 FROM events WHERE user_id = %s AND case_id = %s LIMIT 1",
+                (user_id, case_id),
+            )
+            use_v2 = cur.fetchone() is not None
         if use_v2:
             cur.execute("""
                 SELECT e.occurred_on, e.event_type, e.title, e.summary
@@ -396,19 +408,24 @@ def collections(ctx: Context = None) -> str:
             cur.execute("""
                 SELECT COUNT(DISTINCT case_id)
                 FROM (
-                    SELECT case_id FROM events
+                    SELECT case_id::text FROM events
                     UNION
                     SELECT case_id FROM case_events
                 ) _all
             """)
             event_cases = cur.fetchone()[0]
     except Exception:
+        log.exception("collections count query failed")
         leg_count = case_count = event_cases = "unknown"
     log.info("collections response: legislation=%s caselaw=%s case_events=%s", leg_count, case_count, event_cases)
+
+    def _n(v):
+        return f"{v:,}" if isinstance(v, int) else str(v)
+
     return (
         "Available collections:\n"
-        f"- legislation  : {leg_count:,} NSW legislation chunks (OALC corpus, text-embedding-3-small)\n"
-        f"- caselaw      : {case_count:,} NSW caselaw paragraph chunks\n"
+        f"- legislation  : {_n(leg_count)} NSW legislation chunks (OALC corpus, text-embedding-3-small)\n"
+        f"- caselaw      : {_n(case_count)} NSW caselaw paragraph chunks\n"
         f"- case_events  : Case event timelines ({event_cases} case(s))\n"
         f"Model: {r.json().get('model', 'unknown')}"
     )
