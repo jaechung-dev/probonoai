@@ -175,7 +175,7 @@ export default function MyCasePage() {
             ) : (
               <>
                 {section === 'summary'   && <SummarySection detail={detail} />}
-                {section === 'timeline'  && activeCaseId && <TimelineSection caseId={activeCaseId} />}
+                {section === 'timeline'  && activeCaseId && <TimelineSection caseId={activeCaseId} token={token} />}
                 {section === 'cases'     && (
                   <CasesSection
                     cases={cases} activeCaseId={activeCaseId ?? ''} token={token}
