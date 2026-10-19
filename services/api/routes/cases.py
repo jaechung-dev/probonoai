@@ -104,6 +104,12 @@ async def delete_case(
             raise HTTPException(status_code=404, detail="Case not found")
         if row[0] != user_id:
             raise HTTPException(status_code=403, detail="Forbidden")
+        # v2: deleting from cases cascades to documents, document_pages, chunks, events
+        cur.execute(
+            "DELETE FROM cases WHERE id::text = %s AND user_id = %s",
+            (case_id, user_id),
+        )
+        # legacy
         cur.execute("DELETE FROM case_chunks WHERE case_id = %s", (case_id,))
         cur.execute("DELETE FROM case_intakes WHERE id = %s", (case_id,))
 
@@ -128,6 +134,12 @@ async def update_case_files(
         new_keys = {f["key"] for f in req.files if f.get("key")}
         removed_keys = old_keys - new_keys
         if removed_keys:
+            # v2: documents cascade-deletes document_pages and chunks
+            cur.execute(
+                "DELETE FROM documents WHERE case_id = %s AND user_id = %s AND s3_key = ANY(%s)",
+                (case_id, user_id, list(removed_keys)),
+            )
+            # legacy
             cur.execute(
                 "DELETE FROM case_chunks WHERE case_id = %s AND metadata->>'source_key' = ANY(%s)",
                 (case_id, list(removed_keys)),
@@ -154,6 +166,35 @@ def get_timeline(
             raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
         if owner[0] != user_id:
             raise HTTPException(status_code=403, detail="Forbidden")
+        cur.execute(
+            "SELECT 1 FROM events WHERE case_id::text = %s AND user_id = %s LIMIT 1",
+            (case_id, user_id),
+        )
+        use_v2 = cur.fetchone() is not None
+        if use_v2:
+            cur.execute("""
+                SELECT e.occurred_on, e.event_type, e.title, e.summary, e.excerpt
+                FROM events e
+                WHERE e.case_id::text = %s AND e.user_id = %s
+                ORDER BY e.occurred_on ASC NULLS LAST
+            """, (case_id, user_id))
+            rows = cur.fetchall()
+            return {
+                "case_id": case_id,
+                "total": len(rows),
+                "events": [
+                    {
+                        "date":        str(r[0]),
+                        "category":    None,
+                        "event_type":  r[1],
+                        "subject":     r[2],
+                        "summary":     r[3],
+                        "content":     r[4],
+                        "attachments": [],
+                    }
+                    for r in rows
+                ],
+            }
         cur.execute(
             "SELECT date, category, event_type, subject, summary, content, attachments "
             "FROM case_events WHERE case_id = %s ORDER BY date ASC",

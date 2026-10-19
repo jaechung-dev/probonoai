@@ -369,7 +369,7 @@ async def search(req: SearchRequest, authorization: str = Header(default=None)):
     if req.source == "caselaw":
         retriever = CaselawRetriever(k=req.k)
     elif req.source == "case_events":
-        retriever = CaseEventRetriever(k=req.k, case_id=req.case_id)
+        retriever = CaseEventRetriever(k=req.k, case_id=req.case_id, user_id=user)
     else:
         retriever = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction)
 
@@ -400,6 +400,37 @@ def timeline(case_id: str):
     conn = psycopg2.connect(DSN)
     try:
         cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM events WHERE case_id = %s LIMIT 1",
+            (case_id,),
+        )
+        use_v2 = cur.fetchone() is not None
+        if use_v2:
+            cur.execute("""
+                SELECT e.occurred_on, e.event_type, e.title, e.summary, e.excerpt
+                FROM events e
+                WHERE e.case_id = %s
+                ORDER BY e.occurred_on ASC NULLS LAST
+            """, (case_id,))
+            rows = cur.fetchall()
+            if not rows:
+                raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
+            return {
+                "case_id": case_id,
+                "total": len(rows),
+                "events": [
+                    {
+                        "date":        str(r[0]),
+                        "category":    None,
+                        "event_type":  r[1],
+                        "subject":     r[2],
+                        "summary":     r[3],
+                        "content":     r[4],
+                        "attachments": [],
+                    }
+                    for r in rows
+                ],
+            }
         cur.execute("""
             SELECT date, category, event_type, subject, summary, content, attachments
             FROM case_events
@@ -453,7 +484,7 @@ async def ask(req: AskRequest, authorization: str = Header(default=None)):
     if req.source == "caselaw":
         retriever = CaselawRetriever(k=req.k)
     elif req.source == "case_events":
-        retriever = CaseEventRetriever(k=req.k, case_id=req.case_id)
+        retriever = CaseEventRetriever(k=req.k, case_id=req.case_id, user_id=user)
     else:
         retriever = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction)
 
@@ -569,7 +600,7 @@ async def chat(req: ChatRequest, request: Request, authorization: str = Header(d
     cas = CaselawRetriever(k=req.k)
     all_docs = leg.invoke(req.question) + cas.invoke(req.question)
     if req.case_id:
-        raw_case_docs = CaseChunkRetriever(case_id=req.case_id, k=req.k).invoke(req.question)
+        raw_case_docs = CaseChunkRetriever(case_id=req.case_id, user_id=user, k=req.k).invoke(req.question)
         case_docs = [d for d in raw_case_docs if d.metadata.get("score", 0) >= MIN_CASE_SCORE]
         all_docs = case_docs + all_docs
 

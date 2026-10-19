@@ -40,7 +40,10 @@ classification are planned enhancements.
 ![Document Ingestion Pipeline](./architecture/03-ingestion.png)
 
 **Upload → S3 → SQS → Ingest Lambda → Textract/OCR → chunking → embedding
-generation (`text-embedding-3-small`) → store in pgvector (`case_chunks`).**
+generation (`text-embedding-3-small`) → store in pgvector.**
+Pages and chunks are stored in the v2 schema (`documents`, `document_pages`,
+`chunks`, `events`). The legacy `case_chunks` table is retained for backward
+compatibility during migration.
 Failed messages route to a dead-letter queue. Implemented in
 `services/ingestion/handler.py`.
 

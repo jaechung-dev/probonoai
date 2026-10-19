@@ -24,6 +24,7 @@ mcp_lambda_pkg/
 **/lambda_pkg/
 **/mcp_lambda_pkg/
 terraform/terraform.tfvars
+terraform/*.tfvars.bak
 terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate*
