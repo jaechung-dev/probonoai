@@ -72,5 +72,15 @@ class TestPostgresPath(unittest.TestCase):
             self.assertTrue(run(ratelimit.hit("k", 0, 60)))
 
 
+class TestSyncPath(unittest.TestCase):
+    def test_hit_sync_counts_in_postgres(self):
+        with patch.object(ratelimit, "_hit_postgres", side_effect=[1, 2, 3]):
+            self.assertEqual([ratelimit.hit_sync("k", 2, 60) for _ in range(3)], [True, True, False])
+
+    def test_hit_sync_fails_open(self):
+        with patch.object(ratelimit, "_hit_postgres", return_value=None):
+            self.assertTrue(ratelimit.hit_sync("k", 0, 60))
+
+
 if __name__ == "__main__":
     unittest.main()

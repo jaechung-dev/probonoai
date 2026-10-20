@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from services.core.settings import settings
 from services.core.db import get_db
 from services.core.cache import get_redis
+from services.core import ratelimit
 from services.auth.tokens import (
     AUD_WEB, WEB_SCOPES, make_access_token, request_ip, require_web, security_alert,
 )
@@ -358,16 +359,31 @@ def seed_db():
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 
 
+# Counters live in Postgres (services/core/ratelimit.py) because production has
+# no Redis; the previous Redis-only version silently did nothing there.
+
+_TOO_MANY = "Too many attempts. Please wait a while and try again."
+
+
 async def _rate_limit(key: str, max_attempts: int = 5, window: int = 900) -> None:
-    """Increment attempt counter per key; raise 429 if over limit. No-op when Redis unavailable."""
-    redis = await get_redis()
-    if redis is None:
-        return
-    count = await redis.incr(key)
-    if count == 1:
-        await redis.expire(key, window)
-    if count > max_attempts:
-        raise HTTPException(429, "Too many attempts. Please wait 15 minutes and try again.")
+    """Count one attempt on ``key``; raise 429 once ``max_attempts`` is exceeded within ``window``."""
+    if not await ratelimit.hit(key, max_attempts, window):
+        raise HTTPException(429, _TOO_MANY)
+
+
+def _rate_limit_sync(key: str, max_attempts: int, window: int) -> None:
+    """``_rate_limit`` for the sync endpoints (register, resend, forgot-password)."""
+    if not ratelimit.hit_sync(key, max_attempts, window):
+        raise HTTPException(429, _TOO_MANY)
+
+
+def _limit_email_sends(email: str) -> None:
+    """Endpoints that send email to an arbitrary address: cap per address and per
+    client IP, so they can't be used to spam people or burn our SES reputation.
+    Applied before the user lookup, so the 429 does not reveal whether an
+    account exists."""
+    _rate_limit_sync(f"rate:email-send:{email}", 3, 3600)
+    _rate_limit_sync(f"rate:email-send-ip:{request_ip.get() or 'unknown'}", 10, 3600)
 
 
 # ── Router ─────────────────────────────────────────────────────────────────────
@@ -382,6 +398,7 @@ def auth_register(req: RegisterRequest, response: Response):
         raise HTTPException(422, "Name is required")
     if "@" not in email:
         raise HTTPException(422, "Invalid email address")
+    _limit_email_sends(email)  # sends a verification code
     if len(req.password) < 8:
         raise HTTPException(422, "Password must be at least 8 characters")
 
@@ -419,10 +436,36 @@ def auth_register(req: RegisterRequest, response: Response):
     }
 
 
+LOGIN_FAIL_PER_IP     = (5, 900)    # one account, one IP: 5 failures / 15 min
+LOGIN_FAIL_PER_ACCT   = (50, 3600)  # one account, any IP: distributed-guessing backstop
+LOGIN_ATTEMPTS_PER_IP = (30, 900)   # any account, one IP: all attempts
+
+
 @router.post("/login")
 async def auth_login(req: LoginRequest, request: Request, response: Response):
-    await _rate_limit(f"rate:login:{req.username.lower().strip()}")
-    await _rate_limit(f"rate:login-ip:{request_ip.get() or 'unknown'}", max_attempts=30, window=900)
+    username = req.username.lower().strip()
+    ip = request_ip.get() or "unknown"
+    await _rate_limit(f"rate:login-ip:{ip}", *LOGIN_ATTEMPTS_PER_IP)
+
+    # Only FAILED attempts count against an account, so a shared login (the
+    # public "Guest" demo account) isn't locked by normal use. The account-wide
+    # cap skips seed users: their passwords are public, so there is nothing to
+    # protect, and it would let anyone lock the guest login for everyone.
+    fail_ip_key   = f"rate:login-fail:{username}:{ip}"
+    fail_acct_key = f"rate:login-fail:{username}"
+    check_acct    = req.username not in SEED_USERS
+    # Check BEFORE verifying the password. Otherwise an over-limit attacker could
+    # tell a correct guess (200) from a wrong one (429).
+    if (await ratelimit.count(fail_ip_key) >= LOGIN_FAIL_PER_IP[0]
+            or (check_acct and await ratelimit.count(fail_acct_key) >= LOGIN_FAIL_PER_ACCT[0])):
+        raise HTTPException(429, _TOO_MANY)
+
+    async def _fail(detail: str):
+        await ratelimit.hit(fail_ip_key, *LOGIN_FAIL_PER_IP)
+        if check_acct:
+            await ratelimit.hit(fail_acct_key, *LOGIN_FAIL_PER_ACCT)
+        raise HTTPException(401, detail)
+
     seed = SEED_USERS.get(req.username)
     if seed and seed["password"] and secrets.compare_digest(seed["password"].encode(), req.password.encode()):
         tokens = _issue(
@@ -440,14 +483,14 @@ async def auth_login(req: LoginRequest, request: Request, response: Response):
             },
         }
 
-    email = req.username.lower().strip()
+    email = username
     user  = _db_user(email)
     if not user:
-        raise HTTPException(401, "Invalid email or password")
+        await _fail("Invalid email or password")
     if user["provider"] == "google":
         raise HTTPException(401, "This account uses Google sign-in. Use 'Continue with Google'.")
     if not _verify_password(req.password, user["salt"] or "", user["password_hash"] or ""):
-        raise HTTPException(401, "Invalid email or password")
+        await _fail("Invalid email or password")
     _maybe_upgrade_hash(user["id"], req.password, user["password_hash"] or "")
 
     tokens = _issue(user["id"], email, user["name"], user["role"],
@@ -589,6 +632,7 @@ async def auth_verify_otp(req: OTPVerifyRequest):
 @router.post("/resend-verification")
 def auth_resend_verification(req: EmailRequest):
     email = req.email.lower().strip()
+    _limit_email_sends(email)
     user  = _db_user(email)
     if not user or user["email_verified"]:
         return {"ok": True}
@@ -611,6 +655,7 @@ def auth_resend_verification(req: EmailRequest):
 @router.post("/forgot-password")
 def auth_forgot_password(req: EmailRequest):
     email = req.email.lower().strip()
+    _limit_email_sends(email)
     user  = _db_user(email)
     if not user or user["provider"] == "google":
         return {"ok": True}

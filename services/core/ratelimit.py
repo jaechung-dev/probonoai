@@ -43,6 +43,31 @@ def _hit_postgres(key: str, window: int) -> int | None:
         return None
 
 
+async def count(key: str) -> int:
+    """Current count for ``key`` in its active window, without incrementing. 0 if unknown/unavailable."""
+    redis = await get_redis()
+    if redis is not None:
+        return int(await redis.get(key) or 0)
+    try:
+        conn = psycopg2.connect(settings.DATABASE_URL, connect_timeout=5)
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute("SELECT count FROM rate_limits WHERE key = %s AND reset_at > now()", (key,))
+                row = cur.fetchone()
+                return row[0] if row else 0
+        finally:
+            conn.close()
+    except Exception:
+        log.warning("rate limit store unavailable (key prefix=%s); allowing request", key.split(":")[0])
+        return 0
+
+
+def hit_sync(key: str, limit: int, window: int) -> bool:
+    """``hit`` for sync (threadpool) endpoints. Always uses Postgres."""
+    count = _hit_postgres(key, window)
+    return True if count is None else count <= limit
+
+
 async def hit(key: str, limit: int, window: int) -> bool:
     """Count one hit on ``key``. Returns False once ``limit`` is exceeded within ``window`` seconds."""
     redis = await get_redis()
