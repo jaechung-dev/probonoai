@@ -31,7 +31,10 @@ _embedder: OpenAIEmbeddings | None = None
 def get_embedder() -> OpenAIEmbeddings:
     global _embedder
     if _embedder is None:
-        _embedder = OpenAIEmbeddings(model=EMBED_MODEL)
+        # Queries are one short sentence, so skip the token-length check. It makes
+        # tiktoken download its vocabulary file on the first call of every new Lambda
+        # container (~3 s measured locally with an empty cache); the vectors are identical.
+        _embedder = OpenAIEmbeddings(model=EMBED_MODEL, check_embedding_ctx_length=False)
     return _embedder
 
 
