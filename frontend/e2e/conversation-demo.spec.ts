@@ -25,6 +25,9 @@ async function loginAsBella(page: import('@playwright/test').Page) {
 }
 
 test('conversation sidebar — Bella', async ({ page }) => {
+  // Login + a full /chat answer (buffered by API Gateway, ~15–25s) plus the
+  // 90s/30s waits below don't fit Playwright's default 30s test timeout.
+  test.setTimeout(150_000)
   const apiCalls: string[] = []
   page.on('response', async (resp) => {
     if (resp.url().includes('execute-api')) {
