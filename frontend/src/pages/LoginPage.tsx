@@ -13,6 +13,10 @@ const FEATURES = [
   'Connect Claude via MCP',
 ]
 
+export const ACCOUNT_EXISTS_MESSAGE =
+  'This email is already registered with a password. Sign in with your email and password below, ' +
+  'or use "Forgot password" to reset it.'
+
 function LoginBanner() {
   const [params] = useSearchParams()
   if (params.get('verified') === '1') return (
@@ -39,7 +43,11 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
+  // The Google callback redirects here with ?error=account_exists when the
+  // email already belongs to a password account (linking is refused to
+  // prevent account takeover). Without this the user just bounces back.
+  const [error, setError]       = useState(() =>
+    searchParams.get('error') === 'account_exists' ? ACCOUNT_EXISTS_MESSAGE : '')
   const [loading, setLoading]   = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
