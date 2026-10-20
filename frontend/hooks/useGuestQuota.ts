@@ -20,7 +20,7 @@ export function useGuestQuota() {
 
   // Call before each question. Returns true if the question can proceed.
   // Client-side check for instant UX; the server enforces the real limit per IP
-  // (see services/bff/main.py) so clearing localStorage can't grant more.
+  // (see services/ai/main.py) so clearing localStorage can't grant more.
   const gate = useCallback((): boolean => {
     if (user) return true
     if (getCount() < FREE_LIMIT) {

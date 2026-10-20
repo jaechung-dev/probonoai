@@ -5,6 +5,7 @@ import Nav from '../components/Nav'
 import LoginModal from '../components/LoginModal'
 import SearchResult from '../components/search/SearchResult'
 import { useGuestQuota } from '@/hooks/useGuestQuota'
+import { useAuth } from '@/context/auth'
 import { API_URL as API } from '@/lib/config'
 import type { SearchResult as SearchResultType, Mode, SearchSource, RecentSearch } from '@/types/search'
 
@@ -47,7 +48,14 @@ export default function SearchPage() {
   const [recents, setRecents]   = useState<RecentSearch[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
-  const { gate, showGate, dismissGate } = useGuestQuota()
+  const { gate, forceGate, showGate, dismissGate } = useGuestQuota()
+  const { token } = useAuth()
+  // Signed-in users must send their token, or the server counts them against
+  // the anonymous per-IP quota.
+  const headers = (): Record<string, string> => ({
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  })
 
   useEffect(() => { setRecents(loadRecents()) }, [])
 
@@ -61,9 +69,10 @@ export default function SearchPage() {
     setLoading(true); setResults([]); setError('')
     try {
       const r = await fetch(`${API}/search`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: headers(),
         body: JSON.stringify({ query: q, source: s, k: 8 }),
       })
+      if (r.status === 429) throw new Error('Too many searches. Please wait a while or log in.')
       if (!r.ok) throw new Error(`Server error ${r.status}`)
       const d = await r.json()
       setResults(d.results); pushRecent(q, 'search', s)
@@ -75,10 +84,15 @@ export default function SearchPage() {
   async function doAsk(q = query, s = source) {
     if (!q.trim() || !gate()) return
     setLoading(true); setAnswer(''); setError('')
+    let quotaBlocked = false
     try {
       await fetchEventSource(`${API}/ask`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, openWhenHidden: true,
+        method: 'POST', headers: headers(), openWhenHidden: true,
         body: JSON.stringify({ question: q, source: s, k: 6 }),
+        async onopen(res) {
+          // Server-side free-question limit for anonymous users.
+          if (res.status === 401 && !token) { quotaBlocked = true; throw new Error('quota') }
+        },
         onmessage(ev) {
           if (ev.data === '[DONE]') return
           try { const chunk = JSON.parse(ev.data); if (chunk.text) setAnswer(prev => prev + chunk.text) } catch {}
@@ -87,7 +101,8 @@ export default function SearchPage() {
       })
       pushRecent(q, 'ask', s)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reach the API')
+      if (quotaBlocked) forceGate()
+      else setError(e instanceof Error ? e.message : 'Could not reach the API')
     } finally { setLoading(false) }
   }
 
