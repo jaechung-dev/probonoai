@@ -21,9 +21,9 @@ resource "aws_kms_key" "alerts" {
         Resource  = "*"
       },
       {
-        Sid       = "CloudWatchAlarmsPublish"
+        Sid       = "AlarmAndSesPublish"
         Effect    = "Allow"
-        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Principal = { Service = ["cloudwatch.amazonaws.com", "ses.amazonaws.com"] }
         Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
         Resource  = "*"
         Condition = {
@@ -42,6 +42,57 @@ resource "aws_kms_alias" "alerts" {
 resource "aws_sns_topic" "alerts" {
   name              = "${var.project}-alerts"
   kms_master_key_id = aws_kms_key.alerts.arn
+}
+
+# Replaces the default topic policy, so it restates the account's own access
+# and adds the two AWS services that publish here.
+resource "aws_sns_topic_policy" "alerts" {
+  arn = aws_sns_topic.alerts.arn
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AccountOwner"
+        Effect    = "Allow"
+        Principal = { AWS = "*" }
+        Action = [
+          "SNS:GetTopicAttributes", "SNS:SetTopicAttributes", "SNS:AddPermission",
+          "SNS:RemovePermission", "SNS:DeleteTopic", "SNS:Subscribe",
+          "SNS:ListSubscriptionsByTopic", "SNS:Publish",
+        ]
+        Resource  = aws_sns_topic.alerts.arn
+        Condition = { StringEquals = { "AWS:SourceOwner" = data.aws_caller_identity.current.account_id } }
+      },
+      {
+        Sid       = "AlarmAndSesPublish"
+        Effect    = "Allow"
+        Principal = { Service = ["cloudwatch.amazonaws.com", "ses.amazonaws.com"] }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alerts.arn
+        Condition = { StringEquals = { "AWS:SourceAccount" = data.aws_caller_identity.current.account_id } }
+      },
+    ]
+  })
+}
+
+# ── SES bounce / complaint feedback ───────────────────────────────────────────
+# Every bounce and complaint for probonoai.com.au is published to the alerts
+# topic (emailed to alert_email). The account-level SES suppression list
+# (BOUNCE + COMPLAINT) already stops further sends to those addresses.
+resource "aws_ses_identity_notification_topic" "bounce" {
+  identity                 = aws_ses_domain_identity.probonoai.domain
+  notification_type        = "Bounce"
+  topic_arn                = aws_sns_topic.alerts.arn
+  include_original_headers = false
+  depends_on               = [aws_sns_topic_policy.alerts]
+}
+
+resource "aws_ses_identity_notification_topic" "complaint" {
+  identity                 = aws_ses_domain_identity.probonoai.domain
+  notification_type        = "Complaint"
+  topic_arn                = aws_sns_topic.alerts.arn
+  include_original_headers = false
+  depends_on               = [aws_sns_topic_policy.alerts]
 }
 
 # Set alert_email in terraform.tfvars to get notified. AWS sends a confirmation
