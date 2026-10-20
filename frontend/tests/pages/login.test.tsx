@@ -71,6 +71,27 @@ describe('LoginPage', () => {
     expect(screen.getByText(/invalid or has expired/i)).toBeInTheDocument()
   })
 
+  test('explains the bounce when Google sign-in hits a password account', () => {
+    renderLogin('?error=account_exists')
+    expect(screen.getByText(/already registered with a password/i)).toBeInTheDocument()
+    // The form stays usable so the user can sign in with their password
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+  })
+
+  test('shows no account_exists message on a normal visit', () => {
+    renderLogin()
+    expect(screen.queryByText(/already registered with a password/i)).not.toBeInTheDocument()
+  })
+
+  test('clears the account_exists message when the user tries to sign in', async () => {
+    const mockLogin = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(useAuth).mockReturnValue({ login: mockLogin, user: null, token: null } as any)
+    renderLogin('?error=account_exists')
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => expect(mockLogin).toHaveBeenCalled())
+    expect(screen.queryByText(/already registered with a password/i)).not.toBeInTheDocument()
+  })
+
   test('demo autofill button fills username', () => {
     renderLogin()
     fireEvent.click(screen.getByRole('button', { name: /guest/i }))
