@@ -207,7 +207,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MIN_CASE_SCORE = 0.20
+MIN_CASE_SCORE = settings.MIN_CASE_SCORE
+MIN_LAW_SCORE = settings.MIN_LAW_SCORE
+
+# Added to the system prompt when no legislation/caselaw chunk passes the score
+# gate. The model may still answer from general knowledge (product decision in
+# PLAIN_ENGLISH_SYSTEM) but must say the answer is not from our database.
+NO_LAW_SOURCE_WARNING = (
+    "\n\nIMPORTANT: Our NSW legal database returned nothing relevant to this question. "
+    "You may still give general information from your own knowledge, but say clearly that it is "
+    "not drawn from our legislation database and could not be checked against it. Do not state "
+    "specific section numbers, penalties or time limits as certain; say they should be confirmed "
+    "on legislation.nsw.gov.au or with a lawyer, and mention if the law may be Commonwealth "
+    "rather than NSW."
+)
+
+
+def _dedupe(docs):
+    """Drop exact duplicate chunks (same citation and text), keeping order."""
+    seen, out = set(), []
+    for d in docs:
+        key = (d.metadata.get("citation"), d.page_content)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
+
+
+def _gate_law_docs(docs):
+    """Keep legislation/caselaw hits at or above MIN_LAW_SCORE, without duplicates."""
+    return _dedupe([d for d in docs if d.metadata.get("score", 0) >= MIN_LAW_SCORE])
 
 
 def _fetch_case_docs(case_id: str, user: str, question: str, k: int):
@@ -215,7 +245,7 @@ def _fetch_case_docs(case_id: str, user: str, question: str, k: int):
     if user == "anon":
         raise HTTPException(status_code=401, detail="Authentication required to query case documents")
     raw = CaseChunkRetriever(case_id=case_id, user_id=user, k=k).invoke(question)
-    return [d for d in raw if d.metadata.get("score", 0) >= MIN_CASE_SCORE]
+    return _dedupe([d for d in raw if d.metadata.get("score", 0) >= MIN_CASE_SCORE])
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -284,6 +314,11 @@ async def ask(
     else:
         all_docs = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction).invoke(req.question)
 
+    gate_law = req.source != "case_events"
+    if gate_law:
+        all_docs = _gate_law_docs(all_docs)
+    no_law_docs = gate_law and not all_docs
+
     # Prepend user's case document chunks when case_id is provided.
     case_docs = []
     if req.case_id and req.source != "case_events":
@@ -313,6 +348,9 @@ async def ask(
             "and suggest they upload the relevant documents or consult a qualified lawyer."
         )
 
+    if no_law_docs and not case_docs:
+        no_doc_warning += NO_LAW_SOURCE_WARNING
+
     lc_messages = [
         SystemMessage(content=PLAIN_ENGLISH_SYSTEM + no_doc_warning + "\n\nRelevant legal context:\n" + context),
         HumanMessage(content=req.question),
@@ -337,7 +375,8 @@ async def chat(
 
     leg = LegislationRetriever(k=req.k, jurisdiction="NSW")
     cas = CaselawRetriever(k=req.k)
-    all_docs = leg.invoke(req.question) + cas.invoke(req.question)
+    all_docs = _gate_law_docs(leg.invoke(req.question) + cas.invoke(req.question))
+    no_law_docs = not all_docs
     case_docs = []
     if req.case_id:
         case_docs = _fetch_case_docs(req.case_id, user, req.question, req.k)
@@ -370,6 +409,9 @@ async def chat(
         )
     else:
         no_doc_warning = ""
+
+    if no_law_docs and not case_docs:
+        no_doc_warning += NO_LAW_SOURCE_WARNING
 
     _history_msgs = [
         HumanMessage(content=m.content) if m.role == "user" else AIMessage(content=m.content)
