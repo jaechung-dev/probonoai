@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "probonoai-legal-rag": {
+      "type": "http",
+      "url": "https://api.probonoai.com.au/mcp",
+      "headers": { "Authorization": "Bearer ${PROBONOAI_MCP_TOKEN}" }
+    }
+  }
+}
