@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { Paperclip, X } from 'lucide-react'
 export type { CaseEvent } from '@/types/case'
 import type { CaseEvent } from '@/types/case'
@@ -118,6 +118,7 @@ export default function TimelineClient({ events }: { events: CaseEvent[] }) {
 
 function EventModal({ event: e, onClose }: { event: CaseEvent; onClose: () => void }) {
   const c = COLORS[e.category] || DEFAULT
+  const titleId = useId()
   useEffect(() => {
     const handler = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onClose() }
     document.addEventListener('keydown', handler)
@@ -127,6 +128,7 @@ function EventModal({ event: e, onClose }: { event: CaseEvent; onClose: () => vo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
       <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden"
+        role="dialog" aria-modal="true" aria-labelledby={titleId}
         onClick={ev => ev.stopPropagation()}>
         <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
           <div className="flex items-start justify-between gap-3">
@@ -136,11 +138,11 @@ function EventModal({ event: e, onClose }: { event: CaseEvent; onClose: () => vo
               </span>
               <span className="text-xs text-gray-400 font-mono tabular-nums">{e.date}</span>
             </div>
-            <button onClick={onClose} className="shrink-0 p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-all">
+            <button onClick={onClose} aria-label="Close" className="shrink-0 p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-all">
               <X className="w-4 h-4" />
             </button>
           </div>
-          <h2 className="text-base font-semibold text-gray-900 leading-snug">{e.subject}</h2>
+          <h2 id={titleId} className="text-base font-semibold text-gray-900 leading-snug">{e.subject}</h2>
           {e.summary && <p className="text-sm text-gray-500 mt-1 leading-relaxed">{e.summary}</p>}
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
