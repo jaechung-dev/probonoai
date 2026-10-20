@@ -67,6 +67,16 @@ resource "aws_lambda_function" "ai" {
       SECRET_ARN      = aws_secretsmanager_secret.app.arn
       BACKEND_URL     = var.backend_url
       AWS_REGION_NAME = var.aws_region
+
+      # LangSmith tracing (the API key itself is in Secrets Manager). Inputs and
+      # outputs are hidden so user questions and case text never leave AWS;
+      # only run structure, latency, token counts and errors are sent.
+      LANGSMITH_TRACING              = var.langsmith_tracing ? "true" : "false"
+      LANGSMITH_ENDPOINT             = "https://apac.api.smith.langchain.com"
+      LANGSMITH_PROJECT              = "probono-prod"
+      LANGSMITH_HIDE_INPUTS          = "true"
+      LANGSMITH_HIDE_OUTPUTS         = "true"
+      LANGCHAIN_CALLBACKS_BACKGROUND = "false"
     }
   }
 
@@ -188,7 +198,7 @@ resource "aws_lambda_function" "mcp" {
   handler          = "mcp_server.handler"
   s3_bucket        = aws_s3_bucket.lambda_artifacts.bucket
   s3_key           = "mcp_lambda.zip"
-  timeout          = 60
+  timeout          = 150 # matches prod (raised by hand); /ask via MCP can take a while
   memory_size      = 512
   source_code_hash = null
 
