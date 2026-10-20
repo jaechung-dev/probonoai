@@ -52,6 +52,16 @@ class Settings(BaseSettings):
     EMBED_MODEL: str = "text-embedding-3-small"
     CHAT_MODEL: str = "gpt-4o-mini"
 
+    # Minimum cosine similarity (1 - distance) for a retrieved chunk to reach the
+    # prompt. MIN_LAW_SCORE is based on evals/golden.jsonl (relevant legislation hits
+    # score >= 0.42, p10 0.52). MIN_CASE_SCORE is from a 5-question check on one real
+    # case (Oct 2026): unrelated questions scored 0.18-0.39, related 0.36-0.56. The
+    # ranges overlap, so a score cut only reduces noise; it cannot decide relevance.
+    # Neither gate can tell "topic not in the corpus" (e.g. murder penalty, s 19A,
+    # is missing yet an unrelated chunk scored 0.54): that needs a reranker.
+    MIN_LAW_SCORE: float = 0.45
+    MIN_CASE_SCORE: float = 0.35
+
     UPLOADS_BUCKET: str = ""
     AWS_REGION_NAME: str = "ap-southeast-2"
 

@@ -11,6 +11,7 @@ and fall back to the legacy case_chunks / case_events tables otherwise.
 """
 import datetime as _dt
 import uuid as _uuid
+from functools import lru_cache
 import psycopg2
 
 from langchain_core.retrievers import BaseRetriever
@@ -32,6 +33,13 @@ def get_embedder() -> OpenAIEmbeddings:
     if _embedder is None:
         _embedder = OpenAIEmbeddings(model=EMBED_MODEL)
     return _embedder
+
+
+@lru_cache(maxsize=64)
+def embed_query_cached(query: str) -> tuple[float, ...]:
+    """Embed a query once per process. /chat and /ask run several retrievers on the
+    same question; without this each one makes its own OpenAI embedding call."""
+    return tuple(get_embedder().embed_query(query))
 
 
 def _format_occurred(occurred_on, precision: str) -> str:
@@ -59,7 +67,7 @@ class LegislationRetriever(BaseRetriever):
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
-        vec = get_embedder().embed_query(query)
+        vec = embed_query_cached(query)
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         conn = psycopg2.connect(DSN)
         try:
@@ -100,7 +108,7 @@ class CaselawRetriever(BaseRetriever):
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
-        vec = get_embedder().embed_query(query)
+        vec = embed_query_cached(query)
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         conn = psycopg2.connect(DSN)
         try:
@@ -153,7 +161,7 @@ class CaseChunkRetriever(BaseRetriever):
             _uuid.UUID(self.case_id)
         except (ValueError, AttributeError):
             return []
-        vec = get_embedder().embed_query(query)
+        vec = embed_query_cached(query)
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         conn = psycopg2.connect(DSN)
         try:
@@ -258,7 +266,7 @@ class CaseEventRetriever(BaseRetriever):
             _uuid.UUID(self.case_id)
         except (ValueError, AttributeError):
             return []
-        vec = get_embedder().embed_query(query)
+        vec = embed_query_cached(query)
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         conn = psycopg2.connect(DSN)
         try:
