@@ -1,16 +1,15 @@
 import { test, expect } from '@playwright/test'
 import path from 'path'
+import { e2eCredentials } from './credentials'
 
 const COURT_EML = path.join(__dirname, 'fixtures', 'court_notice.eml')
 const COURT_PDF = path.join(__dirname, 'fixtures', 'court_schedule.pdf')
 
-const EMAIL    = 'jaechung0709@gmail.com'
-const PASSWORD = '23Neptune'
-
 async function login(page: any) {
+  const { email, password } = e2eCredentials()
   await page.goto('/login/')
-  await page.getByPlaceholder(/username/i).fill(EMAIL)
-  await page.getByPlaceholder(/••••••••/).fill(PASSWORD)
+  await page.getByPlaceholder(/username/i).fill(email)
+  await page.getByPlaceholder(/••••••••/).fill(password)
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(page).toHaveURL(/\/chat/, { timeout: 10000 })
 }
