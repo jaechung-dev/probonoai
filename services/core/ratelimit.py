@@ -12,10 +12,8 @@ from __future__ import annotations
 
 import logging
 
-import psycopg2
-
 from services.core.cache import get_redis
-from services.core.settings import settings
+from services.core.db import get_db
 
 log = logging.getLogger(__name__)
 
@@ -29,15 +27,15 @@ RETURNING count
 """
 
 
+# Uses the Lambda's long-lived connection (services/core/db.get_db). Opening a
+# fresh connection per call costs ~1.5s from Sydney to the Singapore database,
+# and a failed login makes several calls.
 def _hit_postgres(key: str, window: int) -> int | None:
     try:
-        conn = psycopg2.connect(settings.DATABASE_URL, connect_timeout=5)
-        try:
-            with conn, conn.cursor() as cur:
-                cur.execute(_UPSERT, {"key": key, "window": window})
-                return cur.fetchone()[0]
-        finally:
-            conn.close()
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute(_UPSERT, {"key": key, "window": window})
+            return cur.fetchone()[0]
     except Exception:
         log.warning("rate limit store unavailable (key prefix=%s); allowing request", key.split(":")[0])
         return None
@@ -49,14 +47,11 @@ async def count(key: str) -> int:
     if redis is not None:
         return int(await redis.get(key) or 0)
     try:
-        conn = psycopg2.connect(settings.DATABASE_URL, connect_timeout=5)
-        try:
-            with conn, conn.cursor() as cur:
-                cur.execute("SELECT count FROM rate_limits WHERE key = %s AND reset_at > now()", (key,))
-                row = cur.fetchone()
-                return row[0] if row else 0
-        finally:
-            conn.close()
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT count FROM rate_limits WHERE key = %s AND reset_at > now()", (key,))
+            row = cur.fetchone()
+            return row[0] if row else 0
     except Exception:
         log.warning("rate limit store unavailable (key prefix=%s); allowing request", key.split(":")[0])
         return 0
