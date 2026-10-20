@@ -14,6 +14,9 @@ from conftest import BASE_URL, DEMO_PASSWORD
 # Module-level token state shared across tests
 access_token = None
 refresh_token = None
+# The refresh token lives in an httpOnly `iai_refresh` cookie (path=/auth), not
+# in the JSON body; a Session carries it to /auth/refresh and /auth/logout.
+session = requests.Session()
 
 TIMEOUT = 30
 
@@ -39,7 +42,7 @@ def test_01_health():
 
 def test_02_login_demo():
     global access_token, refresh_token
-    resp = requests.post(
+    resp = session.post(
         f"{BASE_URL}/auth/login",
         json={"username": "demo", "password": DEMO_PASSWORD},
         timeout=TIMEOUT,
@@ -47,9 +50,10 @@ def test_02_login_demo():
     assert resp.status_code == 200, f"Login failed ({resp.status_code}): {resp.text}"
     body = resp.json()
     access_token = body.get("access_token")
-    refresh_token = body.get("refresh_token")
+    refresh_token = session.cookies.get("iai_refresh")
     assert access_token, f"No access_token in response: {body}"
-    assert refresh_token, f"No refresh_token in response: {body}"
+    assert "refresh_token" not in body, "refresh token must not be exposed in the JSON body"
+    assert refresh_token, "No iai_refresh cookie set by /auth/login"
 
 
 # ---------------------------------------------------------------------------
@@ -75,11 +79,7 @@ def test_04_refresh():
     global access_token
     if refresh_token is None:
         pytest.skip("Login failed — skipping test_04_refresh")
-    resp = requests.post(
-        f"{BASE_URL}/auth/refresh",
-        json={"refresh_token": refresh_token},
-        timeout=TIMEOUT,
-    )
+    resp = session.post(f"{BASE_URL}/auth/refresh", timeout=TIMEOUT)
     assert resp.status_code == 200, f"Refresh failed ({resp.status_code}): {resp.text}"
     body = resp.json()
     new_token = body.get("access_token")
@@ -175,12 +175,7 @@ def test_07_ask_streams():
 def test_08_logout():
     if refresh_token is None:
         pytest.skip("Login failed — skipping test_08_logout")
-    resp = requests.post(
-        f"{BASE_URL}/auth/logout",
-        json={"refresh_token": refresh_token},
-        headers=auth_headers(),
-        timeout=TIMEOUT,
-    )
+    resp = session.post(f"{BASE_URL}/auth/logout", headers=auth_headers(), timeout=TIMEOUT)
     assert resp.status_code == 200, f"Logout failed ({resp.status_code}): {resp.text}"
     body = resp.json()
     assert body.get("ok") is True, f"Expected ok=true in logout response: {body}"

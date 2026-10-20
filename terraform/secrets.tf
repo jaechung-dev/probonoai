@@ -40,6 +40,24 @@ resource "aws_secretsmanager_secret_version" "app" {
     GOOGLE_CLIENT_SECRET = var.google_client_secret
     ADMIN_PASSWORD       = var.admin_password
     DEMO_PASSWORD        = var.demo_password
+
+    # Previously managed by hand in the console; now in Terraform so `apply`
+    # cannot overwrite them. See docs/GPT_ACTION_SETUP.md.
+    GPT_OAUTH_CLIENT_ID     = var.gpt_oauth_client_id
+    GPT_OAUTH_CLIENT_SECRET = var.gpt_oauth_client_secret
+    GPT_ALLOWED_CIDRS       = var.gpt_allowed_cidrs
+    MCP_OAUTH_CLIENT_ID     = var.mcp_oauth_client_id
+    MCP_OAUTH_CLIENT_SECRET = var.mcp_oauth_client_secret
+
+    # LangSmith tracing. Inputs/outputs are hidden so user questions and case
+    # text are not sent to the third party; only structure, latency, tokens, errors.
+    LANGSMITH_TRACING              = "true"
+    LANGSMITH_ENDPOINT             = "https://apac.api.smith.langchain.com"
+    LANGSMITH_API_KEY              = var.langsmith_api_key
+    LANGSMITH_PROJECT              = "probono-prod"
+    LANGSMITH_HIDE_INPUTS          = "true"
+    LANGSMITH_HIDE_OUTPUTS         = "true"
+    LANGCHAIN_CALLBACKS_BACKGROUND = "false"
   })
 }
 

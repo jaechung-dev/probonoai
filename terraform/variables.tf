@@ -1,5 +1,5 @@
 variable "aws_region" {
-  default = "ap-southeast-2"  # Sydney
+  default = "ap-southeast-2" # Sydney
 }
 
 variable "project" {
@@ -15,8 +15,8 @@ variable "database_url" {
 }
 
 variable "jwt_secret" {
-  sensitive   = true
-  default     = "change-me-in-production"
+  sensitive = true
+  default   = "change-me-in-production"
 }
 
 variable "admin_password" {
@@ -58,4 +58,39 @@ variable "google_client_id" {
 variable "google_client_secret" {
   sensitive = true
   default   = ""
+}
+
+# ── Secrets previously added by hand in the AWS console ──────────────────────
+# No defaults on purpose: if a value is not supplied, `terraform plan` fails
+# instead of silently writing an empty string into Secrets Manager.
+variable "gpt_oauth_client_id" {
+  sensitive = true
+}
+
+variable "gpt_oauth_client_secret" {
+  sensitive = true
+}
+
+variable "gpt_allowed_cidrs" {
+  sensitive = true
+}
+
+variable "mcp_oauth_client_id" {
+  sensitive = true
+}
+
+variable "mcp_oauth_client_secret" {
+  sensitive = true
+}
+
+# LangSmith tracing (APAC region). Content is hidden in traces (see secrets.tf).
+variable "langsmith_api_key" {
+  sensitive = true
+}
+
+# Where CloudWatch alarms are emailed (see monitoring.tf). Empty = no
+# subscription; the alarms still exist and show in the console.
+variable "alert_email" {
+  type    = string
+  default = ""
 }
