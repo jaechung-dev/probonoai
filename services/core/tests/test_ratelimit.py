@@ -1,6 +1,7 @@
 """services/core/ratelimit.py: Redis path, Postgres path, and fail-open."""
 import asyncio
 import unittest
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from services.core import ratelimit
@@ -38,38 +39,50 @@ class TestRedisPath(unittest.TestCase):
 
 
 class TestPostgresPath(unittest.TestCase):
-    def _conn(self, count):
+    def _db(self, count):
         cur = MagicMock()
         cur.fetchone.return_value = (count,)
-        cur.__enter__ = lambda s: s
-        cur.__exit__ = lambda s, *a: False
         conn = MagicMock()
         conn.cursor.return_value = cur
-        conn.__enter__ = lambda s: s
-        conn.__exit__ = lambda s, *a: False
-        return conn, cur
 
-    def test_uses_postgres_when_no_redis(self):
-        conn, cur = self._conn(1)
+        @contextmanager
+        def get_db():
+            yield conn
+        return get_db, conn, cur
+
+    def test_uses_shared_connection_when_no_redis(self):
+        get_db, conn, cur = self._db(1)
         with patch.object(ratelimit, "get_redis", AsyncMock(return_value=None)), \
-             patch.object(ratelimit.psycopg2, "connect", return_value=conn):
+             patch.object(ratelimit, "get_db", get_db):
             self.assertTrue(run(ratelimit.hit("k", 2, 60)))
         sql = cur.execute.call_args.args[0]
         self.assertIn("ON CONFLICT (key) DO UPDATE", sql)
         self.assertEqual(cur.execute.call_args.args[1], {"key": "k", "window": 60})
-        conn.close.assert_called_once()
+        conn.close.assert_not_called()  # reused across invocations, never closed per call
 
     def test_blocks_when_count_exceeds_limit(self):
-        conn, _ = self._conn(3)
+        get_db, _, _ = self._db(3)
         with patch.object(ratelimit, "get_redis", AsyncMock(return_value=None)), \
-             patch.object(ratelimit.psycopg2, "connect", return_value=conn):
+             patch.object(ratelimit, "get_db", get_db):
             self.assertFalse(run(ratelimit.hit("k", 2, 60)))
+
+    def test_count_reads_without_incrementing(self):
+        get_db, _, cur = self._db(4)
+        with patch.object(ratelimit, "get_redis", AsyncMock(return_value=None)), \
+             patch.object(ratelimit, "get_db", get_db):
+            self.assertEqual(run(ratelimit.count("k")), 4)
+        self.assertTrue(cur.execute.call_args.args[0].lstrip().startswith("SELECT"))
 
     def test_fails_open_when_store_unavailable(self):
         # e.g. DB down, or the migration has not been applied yet
+        @contextmanager
+        def broken():
+            raise Exception("relation does not exist")
+            yield  # pragma: no cover
         with patch.object(ratelimit, "get_redis", AsyncMock(return_value=None)), \
-             patch.object(ratelimit.psycopg2, "connect", side_effect=Exception("relation does not exist")):
+             patch.object(ratelimit, "get_db", broken):
             self.assertTrue(run(ratelimit.hit("k", 0, 60)))
+            self.assertEqual(run(ratelimit.count("k")), 0)
 
 
 class TestSyncPath(unittest.TestCase):
