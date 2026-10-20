@@ -4,8 +4,44 @@
 # 200, so a broken SES setup is invisible to users and to the API. This turns
 # that log line into an alarm.
 
+# Customer-managed key, not alias/aws/sns: CloudWatch alarms cannot publish to
+# a topic encrypted with the AWS-managed SNS key, so the key policy must grant
+# cloudwatch.amazonaws.com use of it explicitly.
+resource "aws_kms_key" "alerts" {
+  description         = "${var.project} alerts SNS topic"
+  enable_key_rotation = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AccountAdmin"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "CloudWatchAlarmsPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      },
+    ]
+  })
+}
+
+resource "aws_kms_alias" "alerts" {
+  name          = "alias/${var.project}-alerts"
+  target_key_id = aws_kms_key.alerts.key_id
+}
+
 resource "aws_sns_topic" "alerts" {
-  name = "${var.project}-alerts"
+  name              = "${var.project}-alerts"
+  kms_master_key_id = aws_kms_key.alerts.arn
 }
 
 # Set alert_email in terraform.tfvars to get notified. AWS sends a confirmation
