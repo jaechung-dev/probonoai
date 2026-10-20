@@ -61,6 +61,7 @@ def client(monkeypatch):
     monkeypatch.setattr(main, "CaselawRetriever", FakeCase)
     monkeypatch.setattr(main, "_stream_chat", fake_stream)
     monkeypatch.setattr(main, "_enforce_anon_llm_quota", no_quota)
+    monkeypatch.setattr(main, "embed_query_cached", lambda q: ())
     c = TestClient(main.app)
     c.captured, c.FakeLaw, c.FakeCase = captured, FakeLaw, FakeCase
     return c

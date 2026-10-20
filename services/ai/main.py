@@ -31,6 +31,7 @@ from services.rag.retrievers import (
     CaseChunkRetriever,
     DSN,
     EMBED_MODEL,
+    embed_query_cached,
 )
 from services.rag.chains import (
     format_docs,
@@ -240,6 +241,22 @@ def _gate_law_docs(docs):
     return _dedupe([d for d in docs if d.metadata.get("score", 0) >= MIN_LAW_SCORE])
 
 
+async def _retrieve_concurrently(question, retrievers, case_args=None):
+    """Run the retrievers and the optional case-document lookup in parallel threads.
+
+    The question is embedded once first so every retriever hits the embedding cache.
+    Returns (law_docs, case_docs); case_args is (case_id, user, k) or None.
+    """
+    await asyncio.to_thread(embed_query_cached, question)
+    tasks = [asyncio.to_thread(r.invoke, question) for r in retrievers]
+    if case_args:
+        case_id, user, k = case_args
+        tasks.append(asyncio.to_thread(_fetch_case_docs, case_id, user, question, k))
+    results = list(await asyncio.gather(*tasks))
+    case_docs = results.pop() if case_args else []
+    return [d for docs in results for d in docs], case_docs
+
+
 def _fetch_case_docs(case_id: str, user: str, question: str, k: int):
     """Retrieve and score-gate case document chunks. Enforces auth; cross-user case_id yields []."""
     if user == "anon":
@@ -301,29 +318,33 @@ async def ask(
 
     # Retrieve base docs for the requested source.
     if req.source == "both":
-        leg = LegislationRetriever(k=req.k // 2 + 1, jurisdiction=req.jurisdiction)
-        cas = CaselawRetriever(k=req.k // 2 + 1)
-        all_docs = leg.invoke(req.question) + cas.invoke(req.question)
+        retrievers = [
+            LegislationRetriever(k=req.k // 2 + 1, jurisdiction=req.jurisdiction),
+            CaselawRetriever(k=req.k // 2 + 1),
+        ]
     elif req.source == "caselaw":
-        all_docs = CaselawRetriever(k=req.k).invoke(req.question)
+        retrievers = [CaselawRetriever(k=req.k)]
     elif req.source == "case_events":
         cid = req.case_id or ""
         if cid:
             _require_case_owner(cid, user)
-        all_docs = CaseEventRetriever(k=req.k, case_id=cid, user_id=user).invoke(req.question)
+        retrievers = [CaseEventRetriever(k=req.k, case_id=cid, user_id=user)]
     else:
-        all_docs = LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction).invoke(req.question)
+        retrievers = [LegislationRetriever(k=req.k, jurisdiction=req.jurisdiction)]
+
+    # Prepend user's case document chunks when case_id is provided. Retrieval runs
+    # concurrently: the law retrievers and the case lookup do not depend on each other.
+    want_case_docs = bool(req.case_id) and req.source != "case_events"
+    all_docs, case_docs = await _retrieve_concurrently(
+        req.question, retrievers, (req.case_id, user, req.k) if want_case_docs else None
+    )
 
     gate_law = req.source != "case_events"
     if gate_law:
         all_docs = _gate_law_docs(all_docs)
     no_law_docs = gate_law and not all_docs
 
-    # Prepend user's case document chunks when case_id is provided.
-    case_docs = []
-    if req.case_id and req.source != "case_events":
-        case_docs = _fetch_case_docs(req.case_id, user, req.question, req.k)
-        all_docs = case_docs + all_docs
+    all_docs = case_docs + all_docs
 
     sources = [
         {
@@ -373,14 +394,14 @@ async def chat(
     if user == "anon":
         await _enforce_anon_llm_quota(request)
 
-    leg = LegislationRetriever(k=req.k, jurisdiction="NSW")
-    cas = CaselawRetriever(k=req.k)
-    all_docs = _gate_law_docs(leg.invoke(req.question) + cas.invoke(req.question))
+    all_docs, case_docs = await _retrieve_concurrently(
+        req.question,
+        [LegislationRetriever(k=req.k, jurisdiction="NSW"), CaselawRetriever(k=req.k)],
+        (req.case_id, user, req.k) if req.case_id else None,
+    )
+    all_docs = _gate_law_docs(all_docs)
     no_law_docs = not all_docs
-    case_docs = []
-    if req.case_id:
-        case_docs = _fetch_case_docs(req.case_id, user, req.question, req.k)
-        all_docs = case_docs + all_docs
+    all_docs = case_docs + all_docs
 
     sources = [
         {
