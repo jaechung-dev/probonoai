@@ -15,6 +15,7 @@ from typing import AsyncIterator
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from langchain_core.tracers.langchain import wait_for_all_tracers
 
 from services.core.settings import settings
 from services.rag.prompts import PROMPT, PLAIN_ENGLISH_SYSTEM
@@ -27,6 +28,22 @@ from services.rag.retrievers import (
 logger = logging.getLogger(__name__)
 
 CHAT_MODEL = settings.CHAT_MODEL
+
+
+async def _flush_traces() -> None:
+    """Send pending LangSmith run updates before the Lambda response ends.
+
+    Lambda freezes the container once the response is done, which can strand the
+    tracer's background queue so runs stay "pending" in LangSmith. Runs in a thread
+    so the event loop (and the request-log task) keep going; never raises.
+    """
+    try:
+        from langsmith.utils import tracing_is_enabled
+        if not tracing_is_enabled():
+            return
+        await asyncio.to_thread(wait_for_all_tracers)
+    except Exception:
+        logger.warning("could not flush LangSmith traces", exc_info=True)
 
 # ── Lazy LLM — initialised on first use, not at import time ───────────────────
 
@@ -238,6 +255,7 @@ async def stream_ask(
         output_data={"answer": strip_think(buffer)},
         elapsed_ms=elapsed_ms,
     ))
+    await _flush_traces()
 
 
 async def stream_chat(
@@ -290,3 +308,4 @@ async def stream_chat(
         output_data={"answer": strip_think(buffer)},
         elapsed_ms=elapsed_ms,
     ))
+    await _flush_traces()
