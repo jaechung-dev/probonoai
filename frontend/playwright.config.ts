@@ -14,6 +14,19 @@ function getApiUrl(): string {
   throw new Error('NEXT_PUBLIC_API_URL not found in .env.production — set it explicitly')
 }
 
+// Test-account login (E2E_EMAIL / E2E_PASSWORD) may live in the gitignored
+// .env.local. Only E2E_* keys are read so nothing else there (e.g. a local API
+// URL) silently changes which server the suite targets. Shell env wins.
+function loadE2eEnv(): void {
+  try {
+    const env = readFileSync(join(__dirname, '.env.local'), 'utf-8')
+    for (const m of env.matchAll(/^(E2E_[A-Z0-9_]+)=(.*)$/gm)) {
+      if (!process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^(['"])(.*)\1$/, '$2')
+    }
+  } catch { /* no .env.local */ }
+}
+loadE2eEnv()
+
 const API_URL = getApiUrl()
 process.env.NEXT_PUBLIC_API_URL = API_URL
 // MCP server — default to production unless overridden

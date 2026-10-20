@@ -3,17 +3,17 @@
  * Run: npx playwright test conversation-demo
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { e2eCredentials } from './credentials'
 
-const API   = 'https://api.probonoai.com.au'
-const EMAIL = 'jaechung0709@gmail.com'
-const PASS  = '23Neptune'
+const API   = process.env.NEXT_PUBLIC_API_URL || 'https://api.probonoai.com.au'
 const QUESTION = 'Who sent threatening messages and what did they say?'
 const SS    = (name: string) => `screenshots/${name}.png`
 
 async function loginAsBella(page: import('@playwright/test').Page) {
+  const { email, password } = e2eCredentials()
   const ctx = await playwrightRequest.newContext()
   const res = await ctx.post(`${API}/auth/login`, {
-    data: { username: EMAIL, password: PASS },
+    data: { username: email, password },
   })
   const { access_token, refresh_token } = await res.json()
   await ctx.dispose()
@@ -25,6 +25,9 @@ async function loginAsBella(page: import('@playwright/test').Page) {
 }
 
 test('conversation sidebar — Bella', async ({ page }) => {
+  // Login + a full /chat answer (buffered by API Gateway, ~15–25s) plus the
+  // 90s/30s waits below don't fit Playwright's default 30s test timeout.
+  test.setTimeout(150_000)
   const apiCalls: string[] = []
   page.on('response', async (resp) => {
     if (resp.url().includes('execute-api')) {
