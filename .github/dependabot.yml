@@ -1,47 +1,72 @@
 # Automated dependency updates + vulnerability alerts.
-# Financial-grade repos are expected to keep dependencies patched; Dependabot
-# opens PRs for known-vulnerable and outdated packages across every ecosystem.
+#
+# Kept quiet on purpose: one grouped PR per ecosystem per month, minor/patch
+# only. Major upgrades (React, TypeScript, openai, mcp, ...) need code changes
+# and are done by hand. Security updates are NOT affected by `ignore` or the
+# schedule: Dependabot still opens those immediately for vulnerable packages.
 version: 2
 updates:
   # ── Frontend (Vite / React / TS) ────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      frontend-minor:
+      frontend:
         update-types: ["minor", "patch"]
 
   # ── Root Node tooling ───────────────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      root-node:
+        update-types: ["minor", "patch"]
 
   # ── Python services (requirements*.txt live at repo root) ───────────────────
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      python:
+        update-types: ["minor", "patch"]
 
   # ── Container base images ───────────────────────────────────────────────────
   - package-ecosystem: "docker"
-    directory: "/services/auth"
-    schedule: { interval: "weekly" }
-  - package-ecosystem: "docker"
-    directory: "/services/mcp"
-    schedule: { interval: "weekly" }
-  - package-ecosystem: "docker"
-    directory: "/services/rag"
-    schedule: { interval: "weekly" }
-  - package-ecosystem: "docker"
-    directory: "/services/bff"
-    schedule: { interval: "weekly" }
+    directories: ["/services/auth", "/services/mcp", "/services/rag", "/services/bff"]
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      docker:
+        update-types: ["minor", "patch"]
 
   # ── CI/CD action pins ───────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      actions:
+        update-types: ["minor", "patch"]
