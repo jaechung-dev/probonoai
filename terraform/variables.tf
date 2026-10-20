@@ -59,3 +59,10 @@ variable "google_client_secret" {
   sensitive = true
   default   = ""
 }
+
+# Max concurrent executions for the AI Lambda (LLM endpoints). The account's
+# unreserved pool must stay >= 100, and it is shared with other projects.
+variable "ai_reserved_concurrency" {
+  type    = number
+  default = 20
+}

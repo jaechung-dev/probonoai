@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 import psycopg2
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from jose import jwt
@@ -20,6 +20,7 @@ from pydantic import BaseModel, field_validator
 
 from services.core.settings import settings
 from services.core.middleware import AccessLogMiddleware
+from services.core import ratelimit
 
 JWT_SECRET = settings.JWT_SECRET
 JWT_ALG    = settings.JWT_ALG
@@ -111,6 +112,34 @@ def _get_user_from_header(authorization: str = None) -> str:
         return "anon"
 
 
+# ── Anonymous quotas ───────────────────────────────────────────────────────────
+# The frontend's guest limit (frontend/hooks/useGuestQuota.ts) lives in
+# localStorage and is bypassed by any direct API call, so it is enforced here
+# per client IP. request.client is API Gateway's requestContext sourceIp (via
+# Mangum), which the caller cannot spoof, unlike X-Forwarded-For.
+# 401 (not 429) on the LLM endpoints so the frontend shows its register/log-in
+# gate. Logged-in users are not counted; API Gateway throttles everyone.
+
+ANON_LLM_LIMIT     = int(os.getenv("ANON_LLM_LIMIT", "2"))        # /chat + /ask combined
+ANON_LLM_WINDOW    = int(os.getenv("ANON_LLM_WINDOW", "86400"))   # 24h
+ANON_SEARCH_LIMIT  = int(os.getenv("ANON_SEARCH_LIMIT", "30"))
+ANON_SEARCH_WINDOW = int(os.getenv("ANON_SEARCH_WINDOW", "3600"))  # 1h
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+async def _enforce_anon_llm_quota(request: Request) -> None:
+    if not await ratelimit.hit(f"anon-llm:{_client_ip(request)}", ANON_LLM_LIMIT, ANON_LLM_WINDOW):
+        raise HTTPException(401, "Free question limit reached. Please register or log in to continue.")
+
+
+async def _enforce_anon_search_quota(request: Request) -> None:
+    if not await ratelimit.hit(f"anon-search:{_client_ip(request)}", ANON_SEARCH_LIMIT, ANON_SEARCH_WINDOW):
+        raise HTTPException(429, "Too many searches. Please wait a while or log in.")
+
+
 def _require_case_owner(case_id: str, user_id: str) -> None:
     """Verify the caller owns case_id. Checks the v2 cases table first, then
     falls back to case_intakes. Raises 401 for anonymous callers, 403 if the
@@ -195,9 +224,12 @@ def _fetch_case_docs(case_id: str, user: str, question: str, k: int):
 @app.post("/search")
 async def search(
     req: SearchRequest,
+    request: Request,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     user = _get_user_from_header(authorization)
+    if user == "anon":
+        await _enforce_anon_search_quota(request)
     if req.source == "caselaw":
         retriever = CaselawRetriever(k=req.k)
     elif req.source == "case_events":
@@ -230,9 +262,12 @@ async def search(
 @app.post("/ask")
 async def ask(
     req: AskRequest,
+    request: Request,
     authorization: str | None = Header(default=None),
 ) -> StreamingResponse:
     user = _get_user_from_header(authorization)
+    if user == "anon":
+        await _enforce_anon_llm_quota(request)
 
     # Retrieve base docs for the requested source.
     if req.source == "both":
@@ -293,9 +328,12 @@ async def ask(
 @app.post("/chat")
 async def chat(
     req: ChatRequest,
+    request: Request,
     authorization: str | None = Header(default=None),
 ) -> StreamingResponse:
     user = _get_user_from_header(authorization)
+    if user == "anon":
+        await _enforce_anon_llm_quota(request)
 
     leg = LegislationRetriever(k=req.k, jurisdiction="NSW")
     cas = CaselawRetriever(k=req.k)

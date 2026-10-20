@@ -57,6 +57,11 @@ resource "aws_lambda_function" "ai" {
   memory_size      = 512
   source_code_hash = null
 
+  # Hard ceiling on concurrent LLM-backed requests (/search, /ask, /chat).
+  # Without it, a flood could take the account's whole shared 400-execution
+  # pool, starving every other Lambda in the account, and run up OpenAI cost.
+  reserved_concurrent_executions = var.ai_reserved_concurrency
+
   environment {
     variables = {
       SECRET_ARN      = aws_secretsmanager_secret.app.arn
@@ -95,6 +100,36 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.api.id
   name        = "$default"
   auto_deploy = true
+
+  # Without these the stage inherits the account default (10,000 rps).
+  # Excess requests get HTTP 429 from API Gateway before reaching a Lambda.
+  default_route_settings {
+    throttling_rate_limit  = 50
+    throttling_burst_limit = 100
+  }
+
+  # LLM endpoints: each call costs money and runs ~15-25s.
+  route_settings {
+    route_key              = "ANY /chat"
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
+  route_settings {
+    route_key              = "ANY /ask"
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
+  route_settings {
+    route_key              = "ANY /search"
+    throttling_rate_limit  = 10
+    throttling_burst_limit = 20
+  }
+
+  depends_on = [
+    aws_apigatewayv2_route.ai_chat,
+    aws_apigatewayv2_route.ai_ask,
+    aws_apigatewayv2_route.ai_search,
+  ]
 }
 
 # API Lambda integration (auth, intake, conversations, health)

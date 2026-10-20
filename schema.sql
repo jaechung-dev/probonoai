@@ -263,3 +263,11 @@ CREATE INDEX IF NOT EXISTS security_events_user_idx ON security_events(user_id, 
 
 -- 7. users.salt is no longer written for new/upgraded (bcrypt) hashes — nothing to migrate;
 --    legacy SHA-256 hashes upgrade to bcrypt automatically on each user's next login.
+
+-- Rate limits / anonymous quotas (see migrations/2026-10-20_rate_limits.sql)
+CREATE TABLE IF NOT EXISTS rate_limits (
+    key       TEXT PRIMARY KEY,
+    count     INTEGER     NOT NULL,
+    reset_at  TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_limits_reset_at_idx ON rate_limits (reset_at);
