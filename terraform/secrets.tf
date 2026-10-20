@@ -20,9 +20,23 @@
 #     requires also re-seeding the DB (call /auth/reset-password or re-run
 #     seed_db with the new value).
 #
-# Terraform state warning:
-#   Secret values appear in plaintext in terraform.tfstate. Keep state local
-#   (gitignored) or migrate to S3 remote state with SSE + versioning.
+# Values are NOT managed by Terraform:
+#   Terraform creates the secret (the container) and gives Lambdas its ARN.
+#   The JSON values are set and rotated outside Terraform, so they never sit in
+#   terraform.tfvars or terraform.tfstate, and `apply` can never overwrite or
+#   blank a production secret:
+#
+#     aws secretsmanager get-secret-value --secret-id iai-legal-demo/secrets   # read
+#     aws secretsmanager put-secret-value --secret-id iai-legal-demo/secrets \
+#       --secret-string file://secrets.json                                    # replace all keys
+#
+#   Expected keys: DATABASE_URL JWT_SECRET OPENAI_API_KEY GOOGLE_CLIENT_ID
+#   GOOGLE_CLIENT_SECRET ADMIN_PASSWORD DEMO_PASSWORD GPT_OAUTH_CLIENT_ID
+#   GPT_OAUTH_CLIENT_SECRET GPT_ALLOWED_CIDRS MCP_OAUTH_CLIENT_ID
+#   MCP_OAUTH_CLIENT_SECRET LANGSMITH_API_KEY
+#
+#   Non-secret settings (e.g. LangSmith project/endpoint) are plain Lambda
+#   environment variables in lambda.tf.
 
 resource "aws_secretsmanager_secret" "app" {
   name                    = "${var.project}/secrets"
@@ -30,35 +44,15 @@ resource "aws_secretsmanager_secret" "app" {
   recovery_window_in_days = 7
 }
 
-resource "aws_secretsmanager_secret_version" "app" {
-  secret_id = aws_secretsmanager_secret.app.id
-  secret_string = jsonencode({
-    DATABASE_URL         = var.database_url
-    JWT_SECRET           = var.jwt_secret
-    OPENAI_API_KEY       = var.openai_api_key
-    GOOGLE_CLIENT_ID     = var.google_client_id
-    GOOGLE_CLIENT_SECRET = var.google_client_secret
-    ADMIN_PASSWORD       = var.admin_password
-    DEMO_PASSWORD        = var.demo_password
+# The secret's value used to be an aws_secretsmanager_secret_version fed from
+# tfvars. Forget it without touching AWS: the current version (and every value
+# in it) stays exactly as it is; it just leaves Terraform state.
+removed {
+  from = aws_secretsmanager_secret_version.app
 
-    # Previously managed by hand in the console; now in Terraform so `apply`
-    # cannot overwrite them. See docs/GPT_ACTION_SETUP.md.
-    GPT_OAUTH_CLIENT_ID     = var.gpt_oauth_client_id
-    GPT_OAUTH_CLIENT_SECRET = var.gpt_oauth_client_secret
-    GPT_ALLOWED_CIDRS       = var.gpt_allowed_cidrs
-    MCP_OAUTH_CLIENT_ID     = var.mcp_oauth_client_id
-    MCP_OAUTH_CLIENT_SECRET = var.mcp_oauth_client_secret
-
-    # LangSmith tracing. Inputs/outputs are hidden so user questions and case
-    # text are not sent to the third party; only structure, latency, tokens, errors.
-    LANGSMITH_TRACING              = "true"
-    LANGSMITH_ENDPOINT             = "https://apac.api.smith.langchain.com"
-    LANGSMITH_API_KEY              = var.langsmith_api_key
-    LANGSMITH_PROJECT              = "probono-prod"
-    LANGSMITH_HIDE_INPUTS          = "true"
-    LANGSMITH_HIDE_OUTPUTS         = "true"
-    LANGCHAIN_CALLBACKS_BACKGROUND = "false"
-  })
+  lifecycle {
+    destroy = false
+  }
 }
 
 output "secret_arn" {
